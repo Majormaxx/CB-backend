@@ -1,5 +1,5 @@
 import { injectable } from 'inversify';
-import { Response } from 'express';
+import { Request, Response } from 'express';
 import { CreateOrgModel, organizationScheme } from '../models/org/createOrg.model.js';
 import { OrganizationService } from '../services/organization.service.js';
 import { handleResponse } from '../models/response_models/request_handler.js';
@@ -13,7 +13,10 @@ export class OrganizationController {
     constructor(
         private organizationService: OrganizationService) { }
 
-    public createOrg = async (req: any, res: Response) => {
+    /**
+     * Creates a new organization.
+     */
+    public createOrg = async (req: Request, res: Response) => {
         try {
             const model: CreateOrgModel = req.body!;
             const isValid = organizationScheme.validate(model);
@@ -22,7 +25,7 @@ export class OrganizationController {
             }
 
             // Handle file upload (assuming the file is sent in req.file or req.files)
-            const file = (req as any).file;
+            const file = req.file;
             let logoUrl: string | undefined;
 
             if (file) {
@@ -38,7 +41,7 @@ export class OrganizationController {
 
             // Call the organization service to create the organization
             const createdResponseModel = await this.organizationService.createOrganization(
-                (req as any).user.walletAddress,
+                req.user!.walletAddress,
                 { ...model, logo: logoUrl as string } // Pass the logo URL along with the model
             );
 
@@ -50,10 +53,13 @@ export class OrganizationController {
         }
     }
 
-    public getInvitationToken = async (req: any, res: Response) => {
+    /**
+     * Generates an invitation token for the user's organization.
+     */
+    public getInvitationToken = async (req: Request, res: Response) => {
         try {
             const invitationToken = await this.organizationService
-                .generateInvitationLink(req.user.walletAddress);
+                .generateInvitationLink(req.user!.walletAddress);
             res.status(invitationToken.statusCode).json(handleResponse(invitationToken));
 
         } catch (error) {
@@ -62,7 +68,10 @@ export class OrganizationController {
         }
     }
 
-    public editOrg = async (req: any, res: Response) => {
+    /**
+     * Edits an existing organization.
+     */
+    public editOrg = async (req: Request, res: Response) => {
         try {
             const model: OrgModel = req.body!;
             const isValid = fullOrganizationScheme.validate(model);
@@ -71,7 +80,7 @@ export class OrganizationController {
             }
 
             // Handle file upload (assuming the file is sent in req.file or req.files)
-            const file = (req as any).file;
+            const file = req.file;
             let logoUrl: string | undefined;
 
             if (file) {
@@ -86,7 +95,7 @@ export class OrganizationController {
             }
 
             const createdResponseModel = await this.organizationService.editOrganization
-                (req.user.walletAddress, { ...model, logo: logoUrl as string });
+                (req.user!.walletAddress, { ...model, logo: logoUrl as string });
             res.status(createdResponseModel.statusCode).json(handleResponse(createdResponseModel));
 
         } catch (error) {
@@ -95,7 +104,10 @@ export class OrganizationController {
         }
     }
 
-    public getOrg = async (req: any, res: Response) => {
+    /**
+     * Retrieves an organization by its ID.
+     */
+    public getOrg = async (req: Request, res: Response) => {
         try {
             const id = req.params.orgId;
 
@@ -108,14 +120,17 @@ export class OrganizationController {
         }
     }
 
-    public addAgreement = async (req: any, res: Response) => {
+    /**
+     * Adds a new agreement to the organization.
+     */
+    public addAgreement = async (req: Request, res: Response) => {
         try {
             const agreement: CreateAgreementModel = req.body;
             const isValid = createAgreementSchema.validate(agreement);
             if (isValid.error) {
                 return res.status(400).json({ message: isValid.error.message });
             }
-            const createdResponseModel = await this.organizationService.addAgreement(req.user.walletAddress, agreement);
+            const createdResponseModel = await this.organizationService.addAgreement(req.user!.walletAddress, agreement);
             res.status(createdResponseModel.statusCode).json(handleResponse(createdResponseModel));
 
         } catch (error) {
@@ -125,7 +140,10 @@ export class OrganizationController {
     }
 
 
-    public editAgreement = async (req: any, res: Response) => {
+    /**
+     * Edits an existing agreement in the organization.
+     */
+    public editAgreement = async (req: Request, res: Response) => {
         try {
             const agreementId: string = req.params.agreementId;
             const agreement: CreateAgreementModel = req.body;
@@ -134,7 +152,7 @@ export class OrganizationController {
                 return res.status(400).json({ message: isValid.error.message });
             }
             const createdResponseModel = await this.organizationService.editAgreement(
-                req.user.walletAddress,
+                req.user!.walletAddress,
                 agreementId,
                 agreement);
             res.status(createdResponseModel.statusCode).json(handleResponse(createdResponseModel));
@@ -146,11 +164,14 @@ export class OrganizationController {
     }
 
 
-    public removeAgreement = async (req: any, res: Response) => {
+    /**
+     * Removes an agreement from the organization.
+     */
+    public removeAgreement = async (req: Request, res: Response) => {
         try {
             const agreementId: string = req.params.agreementId;
             const createdResponseModel = await this.organizationService.removeAgreement(
-                req.user.walletAddress,
+                req.user!.walletAddress,
                 agreementId);
             res.status(createdResponseModel.statusCode).json(handleResponse(createdResponseModel));
 
@@ -160,7 +181,10 @@ export class OrganizationController {
         }
     }
 
-    public getContribAgreement = async (req: any, res: Response) => {
+    /**
+     * Retrieves the contribution agreement for a given contributor.
+     */
+    public getContribAgreement = async (req: Request, res: Response) => {
         try {
             const contributorId = req.params.contributorId;
             const createdResponseModel = await this.organizationService.getUserAgreement(contributorId);
@@ -172,10 +196,13 @@ export class OrganizationController {
         }
     }
 
-    public getMyScores = async (req: any, res: Response) => {
+    /**
+     * Retrieves the scores for the current user's organization.
+     */
+    public getMyScores = async (req: Request, res: Response) => {
         try {
             const createdResponseModel = await this.organizationService
-                .getScoresByWalletAddress(req.user.walletAddress);
+                .getScoresByWalletAddress(req.user!.walletAddress);
             res.status(createdResponseModel.statusCode).json(handleResponse(createdResponseModel));
 
         } catch (error) {

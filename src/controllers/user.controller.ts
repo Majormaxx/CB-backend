@@ -16,11 +16,6 @@ export class UserController {
      */
     public requestNonce = async (req: Request, res: Response) => {
         try {
-            const isValid = walletAddressSchema.validate(req.body);
-            if (isValid.error) {
-                return res.status(400).json({ message: isValid.error.message });
-            }
-
             // Request nonce from the AuthService
             const responseModel = await this.userService.requestNonce(req.body.walletAddress);
             res.status(responseModel.statusCode).json(handleResponse(responseModel));
@@ -37,10 +32,6 @@ export class UserController {
         try {
             const { message, signature } = req.body;
 
-            const isValid = verifySignatureSchema.validate(req.body);
-            if (isValid.error) {
-                return res.status(400).json({ message: isValid.error.message });
-            }
             // Verify the signature and authenticate the user
             const responseModel = await this.userService.verifySignature(message, signature);
             res.status(responseModel.statusCode).json(handleResponse(responseModel));
@@ -53,34 +44,26 @@ export class UserController {
     /**
      * Register a new user
      */
-    public registerUser = async (req: any, res: Response) => {
+    public registerUser = async (req: Request, res: Response) => {
         try {
-            const body: CreateUserModel = req.body;
-            const isValid = createUserScheme.validate(body);
-            if (isValid.error) {
-                return res.status(400).json({ message: isValid.error.message });
+            const model: CreateUserModel = req.body;
+
+            const file = req.file;
+            let avatarUrl: string | undefined;
+
+            if (file) {
+                const uploadResult = await uploadFileToS3({
+                    Bucket: process.env.S3_BUCKET_NAME!,
+                    Key: `user-avatars/${file.originalname}`,
+                    Body: file.buffer,
+                    ContentType: file.mimetype
+                });
+
+                avatarUrl = `https://${process.env.S3_BUCKET_NAME}.s3.amazonaws.com/${uploadResult}`;
             }
 
-            body.walletAddress = req.user.walletAddress;
-
-             // Handle file upload (assuming the file is sent in req.file or req.files)
-             const file = (req as any).file;
-             let avatar: string | undefined;
-
-             if (file) {
-                 const uploadResult = await uploadFileToS3({
-                     Bucket: process.env.S3_BUCKET_NAME!, // Ensure your bucket name is in env variables
-                     Key: `profile-pics/${file.originalname}`, // Customize the path and filename as needed
-                     Body: file.buffer,
-                     ContentType: file.mimetype
-                 });
-
-                 avatar = `https://${process.env.S3_BUCKET_NAME}.s3.amazonaws.com/${uploadResult}`;
-             }
-
-             body.profilePicture = avatar;
-            const responseModel = await this.userService.registerUser(body);
-            return res.status(responseModel.statusCode).json(handleResponse(responseModel));
+            const responseModel = await this.userService.registerUser({ ...model, profilePicture: avatarUrl, walletAddress: req.user!.walletAddress });
+            res.status(responseModel.statusCode).json(handleResponse(responseModel));
         } catch (error) {
             console.error('Error registering user:', error);
             res.status(500).send('Internal Server Error');
@@ -91,13 +74,12 @@ export class UserController {
     /**
      * Get User Me
      */
-    public getUserMe = async (req: any, res: Response) => {
+    public getUserMe = async (req: Request, res: Response) => {
         try {
-            const walletAddress = req.user.walletAddress;
-            const responseModel = await this.userService.getByWalletAddress(walletAddress);
-            return res.status(responseModel.statusCode).json(handleResponse(responseModel));
+            const responseModel = await this.userService.getByWalletAddress(req.user!.walletAddress);
+            res.status(responseModel.statusCode).json(handleResponse(responseModel));
         } catch (error) {
-            console.error('Error registering user:', error);
+            console.error('Error getting user:', error);
             res.status(500).send('Internal Server Error');
         }
     }

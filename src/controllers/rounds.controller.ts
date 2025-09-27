@@ -4,6 +4,8 @@ import { handleResponse } from '../models/response_models/request_handler.js';
 import { RoundService } from '../services/round.service.js';
 import { CreateAssessmentModel, createAssessmentSchema } from '../models/rounds/createAssessment.model.js';
 import { UserService } from '../services/user.service.js';
+import { Request } from 'express';
+import { AddTokenMintTxModel } from '../models/rounds/addTokenMintTx.model.js';
 
 @injectable()
 export class RoundsController {
@@ -14,9 +16,12 @@ export class RoundsController {
     ) { }
 
 
-    public getCurrentRound = async (req: any, res: Response) => {
+    /**
+     * Retrieves the current round for the user's organization.
+     */
+    public getCurrentRound = async (req: Request, res: Response) => {
         try {
-            const walletAddress = req.user.walletAddress;
+            const walletAddress = req.user!.walletAddress;
             const responseModel = await this.userService.getByWalletAddress(walletAddress);
             if (!responseModel.data?.organization?.id) {
                 return res.status(403).json({ message: 'User does not have an org' });
@@ -29,9 +34,12 @@ export class RoundsController {
         }
     }
 
-    public getRounds = async (req: any, res: Response) => {
+    /**
+     * Retrieves all rounds for the user's organization.
+     */
+    public getRounds = async (req: Request, res: Response) => {
         try {
-            const walletAddress = req.user.walletAddress;
+            const walletAddress = req.user!.walletAddress;
             const responseModel = await this.userService.getByWalletAddress(walletAddress);
             if (!responseModel.data?.organization?.id) {
                 return res.status(403).json({ message: 'User does not have an org' });
@@ -44,7 +52,10 @@ export class RoundsController {
         }
     }
 
-    public getRoundById = async (req: any, res: Response) => {
+    /**
+     * Retrieves a round by its ID.
+     */
+    public getRoundById = async (req: Request, res: Response) => {
         try {
             const roundId = req.params.roundId;
             const createdResponseModel = await this.roundService.getRoundById(roundId);
@@ -55,10 +66,13 @@ export class RoundsController {
         }
     }
 
-    public editRound = async (req: any, res: Response) => {
+    /**
+     * Edits a round.
+     */
+    public editRound = async (req: Request, res: Response) => {
         try {
             const model = req.body;
-            const walletAddress = req.user.walletAddress;
+            const walletAddress = req.user!.walletAddress;
             const responseModel = await this.userService.getByWalletAddress(walletAddress);
             if (!responseModel.data?.isAdmin) {
                 return res.status(403).json({ message: 'User is not an admin' });
@@ -76,18 +90,14 @@ export class RoundsController {
         }
     }
 
-    public addAssessment = async (req: any, res: Response) => {
+    /**
+     * Adds an assessment to a round.
+     */
+    public addAssessment = async (req: Request, res: Response) => {
         try {
             const model: CreateAssessmentModel = req.body!;
-            const isValid = createAssessmentSchema.validate(model);
-            if (isValid.error) {
-                return res.status(400).json({ message: isValid.error.message });
-            }
-
-            const createdResponseModel = await this.roundService.addAssessment(
-                (req as any).user.walletAddress,
-                model);
-            res.status(createdResponseModel.statusCode).json(handleResponse(createdResponseModel));
+            const responseModel = await this.roundService.addAssessment(req.user!.walletAddress, model);
+            res.status(responseModel.statusCode).json(handleResponse(responseModel));
         } catch (error) {
             console.error('Error editing an org:', error);
             res.status(500).send('Internal Server Error');
@@ -95,29 +105,24 @@ export class RoundsController {
     }
 
 
-    public editAssessment = async (req: any, res: Response) => {
+    /**
+     * Edits an assessment.
+     */
+    public editAssessment = async (req: Request, res: Response) => {
         try {
             const model: CreateAssessmentModel = req.body!;
-            const isValid = createAssessmentSchema.validate(model);
-            if (isValid.error) {
-                return res.status(400).json({ message: isValid.error.message });
-            }
-
-            const assessmentId: string = req.params.assessmentId;
-
-            const createdResponseModel = await this.roundService.editAssessment(
-                assessmentId,
-                (req as any).user.walletAddress,
-                model
-            );
-            res.status(createdResponseModel.statusCode).json(handleResponse(createdResponseModel));
+            const responseModel = await this.roundService.editAssessment(req.user!.walletAddress, model);
+            res.status(responseModel.statusCode).json(handleResponse(responseModel));
         } catch (error) {
             console.error('Error editing an org:', error);
             res.status(500).send('Internal Server Error');
         }
     }
 
-    public getAssessments = async (req: any, res: Response) => {
+    /**
+     * Retrieves assessments for a round.
+     */
+    public getAssessments = async (req: Request, res: Response) => {
         try {
             const roundId = req.params.roundId;
             const assessorId = req.query.assessorId;
@@ -130,7 +135,10 @@ export class RoundsController {
         }
     }
 
-    public remind = async (req: any, res: Response) => {
+    /**
+     * Sends a reminder to assess.
+     */
+    public remind = async (req: Request, res: Response) => {
         try {
             const roundId = req.params.roundId;
             const { all, users } = req.body;
@@ -143,23 +151,14 @@ export class RoundsController {
     }
 
 
-    public addTokenMintTx = async (req: any, res: Response) => {
+    /**
+     * Adds a token mint transaction to a round.
+     */
+    public addTokenMintTx = async (req: Request, res: Response) => {
         try {
-            const walletAddress = req.user.walletAddress;
-            const responseModel = await this.userService.getByWalletAddress(walletAddress);
-            if (!responseModel.data?.isAdmin) {
-                return res.status(403).json({ message: 'User is not an admin' });
-            }
-            if (!responseModel.data?.organization?.id) {
-                return res.status(403).json({ message: 'User does not have an org' });
-            }
-
-            const txId = req.body.txId;
-            if (!txId) {
-                return res.status(400).json({ message: 'txId is required' });
-            }
-            const result = await this.roundService.addTokenMintTx(req.params.roundId, txId);
-            res.status(result.statusCode).json(handleResponse(result));
+            const model: AddTokenMintTxModel = req.body!;
+            const responseModel = await this.roundService.addTokenMintTx(req.user!.walletAddress, model);
+            res.status(responseModel.statusCode).json(handleResponse(responseModel));
         } catch (error) {
             console.error('Error editing an org:', error);
             res.status(500).send('Internal Server Error');
