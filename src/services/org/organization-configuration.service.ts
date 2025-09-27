@@ -34,7 +34,7 @@ export class OrganizationConfigurationService {
      * @param config The new Safe configuration data.
      * @returns The updated organization.
      */
-    public async updateSafeConfiguration(organizationId: string, config: SafeConfig): Promise<Organization> {
+    public async updateSafeConfig(organizationId: string, config: SafeConfig): Promise<Organization> {
         const organization = await this.orgRepository.findOne({ where: { id: organizationId } });
         if (!organization) {
             throw new Error('Organization not found');
@@ -96,19 +96,19 @@ export class OrganizationConfigurationService {
                 throw new Error('Invalid recognition token contract or unable to fetch decimals');
             }
 
-            if (organization.recognitionTokenMode === RecognitionTokenMode.MINT) {
+            if (config.recognitionTokenMode === RecognitionTokenMode.MINT) {
                 try {
                     const minterRole = await tokenContract.MINTER_ROLE();
-                    const hasMinterRole = await tokenContract.hasRole(minterRole, organization.safeAddress);
+                    const hasMinterRole = await tokenContract.hasRole(minterRole, config.safeAddress);
                     if (!hasMinterRole) {
                         throw new Error('Safe address does not have the MINTER_ROLE on the recognition token contract');
                     }
                 } catch (error) {
                     throw new Error('Could not verify MINTER_ROLE on the recognition token contract');
                 }
-            } else if (organization.recognitionTokenMode === RecognitionTokenMode.TRANSFER) {
+            } else if (config.recognitionTokenMode === RecognitionTokenMode.TRANSFER) {
                 try {
-                    const balance = await tokenContract.balanceOf(organization.safeAddress);
+                    const balance = await tokenContract.balanceOf(config.safeAddress);
                     if (balance <= 0) {
                         throw new Error('Safe address has no balance of the recognition token');
                     }

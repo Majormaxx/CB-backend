@@ -51,6 +51,8 @@ export class App {
     _initRoutes(): void {
         this._app.use('/api/users', this.userRouter.router);
         this._app.use('/api/orgs', this.orgRouter.router);
-        this._app.use('/api/rounds', this.roundsRouter.router);
+import payoutRouter from './routers/payout.router.js';
+
+        this._app.use('/api/payouts', payoutRouter);
     }
 }
