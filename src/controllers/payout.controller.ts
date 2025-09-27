@@ -21,7 +21,7 @@ export class PayoutController {
             const { roundId, tokenType } = req.body;
             const proposal = await this.payoutService.proposePayout(roundId, tokenType);
             res.status(200).json(proposal);
-        } catch (error) {
+        } catch (error: any) {
             res.status(500).json({ error: error.message });
         }
     };
