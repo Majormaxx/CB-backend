@@ -74,7 +74,7 @@ export class OrganizationConfigurationService {
         }
 
         // If a recognition token is provided, validate it
-        if (config.recognitionTokenMode === RecognitionTokenMode.CUSTOM && config.recognitionTokenAddress) {
+        if (config.recognitionTokenMode !== RecognitionTokenMode.NONE && config.recognitionTokenAddress) {
             if (!ethers.isAddress(config.recognitionTokenAddress)) {
                 throw new Error('Invalid recognition token address');
             }
