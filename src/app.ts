@@ -8,6 +8,8 @@ import { UserRouter } from './routers/user.router.js';
 import { OrgRouter } from './routers/org.router.js';
 import { RoundsRouter } from './routers/rounds.router.js';
 import cors from 'cors';
+import { payoutRouter } from './routers/payout.router';
+import { organizationConfigurationRouter } from './routers/organization-configuration.router';
 
 @injectable()
 export class App {
@@ -51,8 +53,10 @@ export class App {
     _initRoutes(): void {
         this._app.use('/api/users', this.userRouter.router);
         this._app.use('/api/orgs', this.orgRouter.router);
-import payoutRouter from './routers/payout.router.js';
-
-        this._app.use('/api/payouts', payoutRouter);
+        this.app.use('/api/v1/payouts', payoutRouter);
+        this.app.use(
+          '/api/v1/organization/configuration',
+          organizationConfigurationRouter,
+        );
     }
 }
