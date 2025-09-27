@@ -8,7 +8,8 @@ import { User } from '../users/user.model.js';
  * token is used or if recognition is disabled.
  */
 export enum RecognitionTokenMode {
-    CUSTOM = 'custom',
+    MINT = 'mint',
+    TRANSFER = 'transfer',
     NONE = 'none',
 }
 

@@ -59,6 +59,7 @@
     "chai-http": "^4.4.0",
     "csv-writer": "^1.6.0",
     "mocha": "^10.4.0",
+    "ts-mockito": "^2.6.1",
     "ts-node": "^10.9.2",
     "ts-node-dev": "2.0.0",
     "tslint": "^6.1.3",

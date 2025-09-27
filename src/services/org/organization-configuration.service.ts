@@ -79,7 +79,14 @@ export class OrganizationConfigurationService {
                 throw new Error('Invalid recognition token address');
             }
 
-            const tokenContract = new ethers.Contract(config.recognitionTokenAddress, ['function decimals() view returns (uint8)'], provider);
+            const tokenAbi = [
+                'function decimals() view returns (uint8)',
+                'function MINTER_ROLE() view returns (bytes32)',
+                'function hasRole(bytes32 role, address account) view returns (bool)',
+                'function balanceOf(address account) view returns (uint256)',
+            ];
+            const tokenContract = new ethers.Contract(config.recognitionTokenAddress, tokenAbi, provider);
+
             try {
                 const decimals = await tokenContract.decimals();
                 if (decimals !== BigInt(config.recognitionTokenDecimals)) {
@@ -87,6 +94,27 @@ export class OrganizationConfigurationService {
                 }
             } catch (error) {
                 throw new Error('Invalid recognition token contract or unable to fetch decimals');
+            }
+
+            if (organization.recognitionTokenMode === RecognitionTokenMode.MINT) {
+                try {
+                    const minterRole = await tokenContract.MINTER_ROLE();
+                    const hasMinterRole = await tokenContract.hasRole(minterRole, organization.safeAddress);
+                    if (!hasMinterRole) {
+                        throw new Error('Safe address does not have the MINTER_ROLE on the recognition token contract');
+                    }
+                } catch (error) {
+                    throw new Error('Could not verify MINTER_ROLE on the recognition token contract');
+                }
+            } else if (organization.recognitionTokenMode === RecognitionTokenMode.TRANSFER) {
+                try {
+                    const balance = await tokenContract.balanceOf(organization.safeAddress);
+                    if (balance <= 0) {
+                        throw new Error('Safe address has no balance of the recognition token');
+                    }
+                } catch (error) {
+                    throw new Error('Could not verify the recognition token balance of the Safe address');
+                }
             }
         }
 
