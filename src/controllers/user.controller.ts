@@ -62,7 +62,11 @@ export class UserController {
                 avatarUrl = `https://${process.env.S3_BUCKET_NAME}.s3.amazonaws.com/${uploadResult}`;
             }
 
-            const responseModel = await this.userService.registerUser({ ...model, profilePicture: avatarUrl, walletAddress: req.user!.walletAddress });
+            const responseModel = await this.userService.registerUser({
+                ...model,
+                profilePicture: avatarUrl,
+                walletAddress: req.user!.walletAddress
+            });
             res.status(responseModel.statusCode).json(handleResponse(responseModel));
         } catch (error) {
             console.error('Error registering user:', error);

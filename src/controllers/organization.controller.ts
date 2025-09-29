@@ -130,7 +130,10 @@ export class OrganizationController {
             if (isValid.error) {
                 return res.status(400).json({ message: isValid.error.message });
             }
-            const createdResponseModel = await this.organizationService.addAgreement(req.user!.walletAddress, agreement);
+            const createdResponseModel = await this.organizationService.addAgreement(
+                req.user!.walletAddress,
+                agreement
+            );
             res.status(createdResponseModel.statusCode).json(handleResponse(createdResponseModel));
 
         } catch (error) {

@@ -52,7 +52,7 @@ export class OrganizationConfigurationService {
         const provider = new ethers.JsonRpcProvider(this.getRpcUrl(config.safeChainId));
         const safeOwner = await EthersAdapter.create({
             ethers,
-            signerOrProvider: provider,
+            signerOrProvider: provider
         });
 
         // Validate Safe address by checking if it has owners (is a valid Safe)
@@ -83,7 +83,7 @@ export class OrganizationConfigurationService {
                 'function decimals() view returns (uint8)',
                 'function MINTER_ROLE() view returns (bytes32)',
                 'function hasRole(bytes32 role, address account) view returns (bool)',
-                'function balanceOf(address account) view returns (uint256)',
+                'function balanceOf(address account) view returns (uint256)'
             ];
             const tokenContract = new ethers.Contract(config.recognitionTokenAddress, tokenAbi, provider);
 
@@ -97,14 +97,16 @@ export class OrganizationConfigurationService {
             }
 
             if (config.recognitionTokenMode === RecognitionTokenMode.MINT) {
-                try {
-                    const minterRole = await tokenContract.MINTER_ROLE();
-                    const hasMinterRole = await tokenContract.hasRole(minterRole, config.safeAddress);
-                    if (!hasMinterRole) {
-                        throw new Error('Safe address does not have the MINTER_ROLE on the recognition token contract');
-                    }
-                } catch (error) {
-                    throw new Error('Could not verify MINTER_ROLE on the recognition token contract');
+                const hasMintingPermission = await this.validateMintingPermission(
+                    config.safeAddress,
+                    config.recognitionTokenAddress,
+                    provider
+                );
+                if (!hasMintingPermission) {
+                    throw new Error(
+                        `Safe address ${config.safeAddress} does not have minting permission on the recognition token contract ${config.recognitionTokenAddress}. ` +
+                        'The Safe must have either MINTER_ROLE, ADMIN_ROLE, or be the contract owner to mint tokens.'
+                    );
                 }
             } else if (config.recognitionTokenMode === RecognitionTokenMode.TRANSFER) {
                 try {
@@ -134,6 +136,82 @@ export class OrganizationConfigurationService {
         }
 
         return this.orgRepository.save(organization);
+    }
+
+    /**
+     * Validates minting permission for TeamPoints or other ERC20 tokens with role-based access.
+     * Supports both MINTER_ROLE (standard) and ADMIN_ROLE (TeamPoints) patterns.
+     *
+     * @param safeAddress The Safe address to check permissions for
+     * @param tokenAddress The token contract address
+     * @param provider The ethers provider
+     * @returns Promise<boolean> indicating if the Safe has minting permission
+     */
+    private async validateMintingPermission(
+        safeAddress: string,
+        tokenAddress: string,
+        provider: ethers.JsonRpcProvider
+    ): Promise<boolean> {
+        // Extended ABI to support both MINTER_ROLE and ADMIN_ROLE patterns
+        const extendedTokenAbi = [
+            'function decimals() view returns (uint8)',
+            'function MINTER_ROLE() view returns (bytes32)',
+            'function ADMIN_ROLE() view returns (bytes32)',
+            'function hasRole(bytes32 role, address account) view returns (bool)',
+            'function balanceOf(address account) view returns (uint256)',
+            'function name() view returns (string)',
+            'function symbol() view returns (string)'
+        ];
+
+        const tokenContract = new ethers.Contract(tokenAddress, extendedTokenAbi, provider);
+
+        try {
+            // First, try to check for MINTER_ROLE (standard ERC20 with AccessControl)
+            try {
+                const minterRole = await tokenContract.MINTER_ROLE();
+                const hasMinterRole = await tokenContract.hasRole(minterRole, safeAddress);
+                if (hasMinterRole) {
+                    console.log(`Safe ${safeAddress} has MINTER_ROLE on token ${tokenAddress}`);
+                    return true;
+                }
+            } catch (minterRoleError) {
+                // MINTER_ROLE not found, continue to check ADMIN_ROLE
+                console.log(`MINTER_ROLE not found on token ${tokenAddress}, checking ADMIN_ROLE`);
+            }
+
+            // Check for ADMIN_ROLE (TeamPoints pattern)
+            try {
+                const adminRole = await tokenContract.ADMIN_ROLE();
+                const hasAdminRole = await tokenContract.hasRole(adminRole, safeAddress);
+                if (hasAdminRole) {
+                    console.log(`Safe ${safeAddress} has ADMIN_ROLE on token ${tokenAddress}`);
+                    return true;
+                }
+            } catch (adminRoleError) {
+                // ADMIN_ROLE not found either
+                console.log(`ADMIN_ROLE not found on token ${tokenAddress}, checking owner pattern`);
+            }
+
+            // If neither role is found, check if it's a standard ERC20 with owner pattern
+            try {
+                const ownerAbi = ['function owner() view returns (address)'];
+                const ownerContract = new ethers.Contract(tokenAddress, ownerAbi, provider);
+                const owner = await ownerContract.owner();
+                if (owner.toLowerCase() === safeAddress.toLowerCase()) {
+                    console.log(`Safe ${safeAddress} is owner of token ${tokenAddress}`);
+                    return true;
+                }
+            } catch (ownerError) {
+                // Owner pattern not found either
+                console.log(`Owner pattern not found on token ${tokenAddress}`);
+            }
+
+            console.log(`Safe ${safeAddress} has no minting permission on token ${tokenAddress}`);
+            return false;
+        } catch (error) {
+            console.error('Error validating minting permission:', error);
+            return false;
+        }
     }
 
     /**
