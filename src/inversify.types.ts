@@ -1,6 +1,5 @@
 const TYPES = {
-  SafeService: Symbol.for('SafeService'),
-  OrganizationConfigurationService: Symbol.for('OrganizationConfigurationService')
+  SafeService: Symbol.for('SafeService')
 };
 
 export { TYPES };
