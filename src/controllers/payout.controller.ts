@@ -14,7 +14,7 @@ export class PayoutController {
         } catch (error) {
             res.status(500).json({ error: error.message });
         }
-    };
+    }
 
     public proposePayout = async (req: Request, res: Response): Promise<void> => {
         try {
@@ -24,5 +24,5 @@ export class PayoutController {
         } catch (error: any) {
             res.status(500).json({ error: error.message });
         }
-    };
+    }
 }
