@@ -56,7 +56,7 @@ export class App {
         this.app.use('/api/v1/payouts', payoutRouter);
         this.app.use(
           '/api/v1/organization/configuration',
-          organizationConfigurationRouter,
+          organizationConfigurationRouter
         );
     }
 }
