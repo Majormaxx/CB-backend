@@ -9,7 +9,7 @@ export enum PayoutRecipientStatus {
     PROPOSED = 'proposed',
     EXECUTED = 'executed',
     FAILED = 'failed',
-    SKIPPED = 'skipped',
+    SKIPPED = 'skipped'
 }
 
 @Entity('payout_recipients')

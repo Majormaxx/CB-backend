@@ -3,19 +3,19 @@ import { Payout } from './payout.model.js';
 
 export enum PayoutType {
     ROUND = 'round',
-    MANUAL = 'manual',
+    MANUAL = 'manual'
 }
 
 export enum TokenType {
     STABLECOIN = 'stablecoin',
-    RECOGNITION = 'recognition',
+    RECOGNITION = 'recognition'
 }
 
 export enum TxProposalStatus {
     PROPOSED = 'proposed',
     EXECUTED = 'executed',
     FAILED = 'failed',
-    CANCELED = 'canceled',
+    CANCELED = 'canceled'
 }
 
 @Entity('tx_proposals')

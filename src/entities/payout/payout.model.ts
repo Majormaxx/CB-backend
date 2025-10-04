@@ -7,7 +7,7 @@ export enum PayoutStatus {
     PROPOSED = 'proposed',
     EXECUTED = 'executed',
     PARTIAL = 'partial',
-    FAILED = 'failed',
+    FAILED = 'failed'
 }
 
 @Entity('payouts')
