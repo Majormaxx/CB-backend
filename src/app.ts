@@ -8,8 +8,8 @@ import { UserRouter } from './routers/user.router.js';
 import { OrgRouter } from './routers/org.router.js';
 import { RoundsRouter } from './routers/rounds.router.js';
 import { OrganizationConfigurationRouter } from './routers/organization-configuration.router.js';
+import { PayoutRouter } from './routers/payout.router.js';
 import cors from 'cors';
-import { payoutRouter } from './routers/payout.router';
 
 @injectable()
 export class App {
@@ -18,7 +18,8 @@ export class App {
         private userRouter: UserRouter,
         private orgRouter: OrgRouter,
         private roundsRouter: RoundsRouter,
-        private organizationConfigurationRouter: OrganizationConfigurationRouter
+        private organizationConfigurationRouter: OrganizationConfigurationRouter,
+        private payoutRouter: PayoutRouter
     ) {
         this._app = express();
         this.config();
@@ -56,6 +57,6 @@ export class App {
         this._app.use('/api/orgs', this.orgRouter.router);
         this._app.use('/api/rounds', this.roundsRouter.router);
         this._app.use('/api/v1/organization/configuration', this.organizationConfigurationRouter.router);
-        this._app.use('/api/v1/payouts', payoutRouter);
+        this._app.use('/api/v1/payouts', this.payoutRouter.router);
     }
 }
