@@ -1,21 +1,18 @@
-import { injectable, inject } from 'inversify';
+import { injectable } from 'inversify';
 import { getRepository, Repository } from 'typeorm';
 import { Organization, RecognitionTokenMode } from '../../entities/org/organization.model.js';
-import { validate } from 'class-validator';
 import { ethers } from 'ethers';
-import EthersAdapter from '@safe-global/safe-ethers-lib';
-import Safe from '@safe-global/safe-core-sdk';
+import { SafeConfigValidationResponse, ChainConfigDTO } from '../../validation/organization.validation.js';
 
 /**
  * Defines the structure for the Safe configuration data.
+ * Note: Decimals are fetched from contracts, not provided as input.
  */
 export interface SafeConfig {
     safeAddress: string;
     safeChainId: number;
     stablecoinAddress: string;
-    stablecoinDecimals: number;
     recognitionTokenAddress?: string;
-    recognitionTokenDecimals?: number;
     recognitionTokenMode: RecognitionTokenMode;
 }
 
@@ -50,30 +47,31 @@ export class OrganizationConfigurationService {
         }
 
         const provider = new ethers.JsonRpcProvider(this.getRpcUrl(config.safeChainId));
-        const safeOwner = await EthersAdapter.create({
-            ethers,
-            signerOrProvider: provider
-        });
 
-        // Validate Safe address by checking if it has owners (is a valid Safe)
-        const safeSdk = await Safe.create({ ethAdapter: safeOwner, safeAddress: config.safeAddress });
-        const owners = await safeSdk.getOwners();
-        if (owners.length === 0) {
-            throw new Error('Safe address is not a valid Gnosis Safe or has no owners');
+        // Validate Safe address by checking if it has owners using direct contract call
+        const safeAbi = ['function getOwners() view returns (address[])'];
+        const safeContract = new ethers.Contract(config.safeAddress, safeAbi, provider);
+        try {
+            const owners = await safeContract.getOwners();
+            if (owners.length === 0) {
+                throw new Error('Safe address is not a valid Gnosis Safe or has no owners');
+            }
+        } catch (error) {
+            throw new Error('Safe address is not a valid deployed Safe contract');
         }
 
-        // Validate stablecoin by checking for `decimals` function
+        // Fetch stablecoin decimals from contract
         const stablecoinContract = new ethers.Contract(config.stablecoinAddress, ['function decimals() view returns (uint8)'], provider);
+        let stablecoinDecimals: number;
         try {
             const decimals = await stablecoinContract.decimals();
-            if (decimals !== BigInt(config.stablecoinDecimals)) {
-                throw new Error('Mismatch in stablecoin decimals');
-            }
+            stablecoinDecimals = Number(decimals);
         } catch (error) {
             throw new Error('Invalid stablecoin contract or unable to fetch decimals');
         }
 
-        // If a recognition token is provided, validate it
+        // If a recognition token is provided, fetch its decimals
+        let recognitionTokenDecimals: number | undefined;
         if (config.recognitionTokenMode !== RecognitionTokenMode.NONE && config.recognitionTokenAddress) {
             if (!ethers.isAddress(config.recognitionTokenAddress)) {
                 throw new Error('Invalid recognition token address');
@@ -89,9 +87,7 @@ export class OrganizationConfigurationService {
 
             try {
                 const decimals = await tokenContract.decimals();
-                if (decimals !== BigInt(config.recognitionTokenDecimals)) {
-                    throw new Error('Mismatch in recognition token decimals');
-                }
+                recognitionTokenDecimals = Number(decimals);
             } catch (error) {
                 throw new Error('Invalid recognition token contract or unable to fetch decimals');
             }
@@ -120,22 +116,174 @@ export class OrganizationConfigurationService {
             }
         }
 
-        // Update organization fields
+        // Update organization fields with fetched decimals
         organization.safeAddress = config.safeAddress;
         organization.safeChainId = config.safeChainId;
         organization.stablecoinAddress = config.stablecoinAddress;
-        organization.stablecoinDecimals = config.stablecoinDecimals;
+        organization.stablecoinDecimals = stablecoinDecimals;
         organization.recognitionTokenAddress = config.recognitionTokenAddress;
-        organization.recognitionTokenDecimals = config.recognitionTokenDecimals;
+        organization.recognitionTokenDecimals = recognitionTokenDecimals;
         organization.recognitionTokenMode = config.recognitionTokenMode;
 
-        // Validate and save the updated entity
-        const errors = await validate(organization);
-        if (errors.length > 0) {
-            throw new Error(`Validation failed: ${errors.toString()}`);
-        }
-
         return this.orgRepository.save(organization);
+    }
+
+    /**
+     * Returns list of supported blockchain networks
+     */
+    public getSupportedChains(): ChainConfigDTO[] {
+        return [
+            {
+                chainId: 1,
+                name: 'Ethereum Mainnet',
+                rpcUrl: process.env.ETHEREUM_RPC_URL || 'https://eth.llamarpc.com',
+                blockExplorerUrl: 'https://etherscan.io',
+                nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
+                isSupported: true
+            },
+            {
+                chainId: 42161,
+                name: 'Arbitrum One',
+                rpcUrl: process.env.ARBITRUM_RPC_URL || 'https://arb1.arbitrum.io/rpc',
+                blockExplorerUrl: 'https://arbiscan.io',
+                nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
+                isSupported: true
+            },
+            {
+                chainId: 421614,
+                name: 'Arbitrum Sepolia',
+                rpcUrl: process.env.ARBITRUM_SEPOLIA_RPC_URL || 'https://sepolia-rollup.arbitrum.io/rpc',
+                blockExplorerUrl: 'https://sepolia.arbiscan.io',
+                nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
+                isSupported: true
+            },
+            {
+                chainId: 42220,
+                name: 'Celo Mainnet',
+                rpcUrl: process.env.CELO_RPC_URL || 'https://forno.celo.org',
+                blockExplorerUrl: 'https://explorer.celo.org',
+                nativeCurrency: { name: 'CELO', symbol: 'CELO', decimals: 18 },
+                isSupported: true
+            },
+            {
+                chainId: 44787,
+                name: 'Celo Alfajores Testnet',
+                rpcUrl: process.env.CELO_ALFAJORES_RPC_URL || 'https://alfajores-forno.celo-testnet.org',
+                blockExplorerUrl: 'https://alfajores.celoscan.io',
+                nativeCurrency: { name: 'CELO', symbol: 'CELO', decimals: 18 },
+                isSupported: true
+            }
+        ];
+    }
+
+    /**
+     * Performs comprehensive validation of Safe configuration including blockchain checks
+     */
+    public async validateSafeConfig(config: any): Promise<SafeConfigValidationResponse> {
+        const errors: string[] = [];
+        const warnings: string[] = [];
+        let safeInfo;
+        let tokenInfo;
+
+        try {
+            // Validate Safe address
+            if (!ethers.isAddress(config.safeAddress)) {
+                errors.push('Invalid Safe address format');
+                return { isValid: false, errors, warnings };
+            }
+
+            const provider = new ethers.JsonRpcProvider(this.getRpcUrl(config.safeChainId));
+
+            // Validate Safe deployment by checking if it has code
+            try {
+                const code = await provider.getCode(config.safeAddress);
+                if (code === '0x') {
+                    errors.push('Safe address is not a deployed contract');
+                    return { isValid: false, errors, warnings };
+                }
+
+                // Try to get Safe info using basic contract calls
+                const safeAbi = [
+                    'function getOwners() view returns (address[])',
+                    'function getThreshold() view returns (uint256)',
+                    'function VERSION() view returns (string)'
+                ];
+                const safeContract = new ethers.Contract(config.safeAddress, safeAbi, provider);
+
+                try {
+                    const owners = await safeContract.getOwners();
+                    const threshold = await safeContract.getThreshold();
+                    let version = '1.3.0';
+                    try {
+                        version = await safeContract.VERSION();
+                    } catch {
+                        // VERSION method might not exist in older Safe versions
+                    }
+
+                    if (owners.length === 0) {
+                        errors.push('Safe address has no owners');
+                    }
+
+                    safeInfo = {
+                        owners,
+                        threshold: Number(threshold),
+                        version
+                    };
+                } catch (error) {
+                    warnings.push('Could not fetch Safe details, but address appears to be a contract');
+                }
+            } catch (error) {
+                errors.push('Safe address is not a valid deployed Safe contract');
+                return { isValid: false, errors, warnings };
+            }
+
+            // Validate stablecoin if provided
+            if (config.stablecoinAddress) {
+                if (!ethers.isAddress(config.stablecoinAddress)) {
+                    errors.push('Invalid stablecoin address format');
+                } else {
+                    try {
+                        const erc20Abi = [
+                            'function decimals() view returns (uint8)',
+                            'function symbol() view returns (string)',
+                            'function name() view returns (string)',
+                            'function balanceOf(address) view returns (uint256)'
+                        ];
+                        const tokenContract = new ethers.Contract(config.stablecoinAddress, erc20Abi, provider);
+                        const decimals = await tokenContract.decimals();
+                        const symbol = await tokenContract.symbol();
+                        const name = await tokenContract.name();
+                        const balance = await tokenContract.balanceOf(config.safeAddress);
+
+                        tokenInfo = {
+                            stablecoin: {
+                                name,
+                                symbol,
+                                decimals: Number(decimals),
+                                balance: ethers.formatUnits(balance, decimals)
+                            }
+                        };
+
+                        if (balance === 0n) {
+                            warnings.push('Safe has zero stablecoin balance');
+                        }
+                    } catch (error) {
+                        errors.push('Stablecoin address is not a valid ERC20 token');
+                    }
+                }
+            }
+
+            return {
+                isValid: errors.length === 0,
+                errors,
+                warnings,
+                safeInfo,
+                tokenInfo
+            };
+        } catch (error) {
+            errors.push(error instanceof Error ? error.message : 'Unknown validation error');
+            return { isValid: false, errors, warnings };
+        }
     }
 
     /**
@@ -221,12 +369,11 @@ export class OrganizationConfigurationService {
      * @returns The RPC URL.
      */
     private getRpcUrl(chainId: number): string {
-        // This should be expanded with more networks or moved to a config file
-        switch (chainId) {
-            case 42161: // Arbitrum One
-                return 'https://arb1.arbitrum.io/rpc';
-            default:
-                throw new Error('Unsupported chain ID');
+        const chains = this.getSupportedChains();
+        const chain = chains.find(c => c.chainId === chainId);
+        if (!chain) {
+            throw new Error(`Unsupported chain ID: ${chainId}`);
         }
+        return chain.rpcUrl;
     }
 }

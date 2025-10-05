@@ -1,12 +1,14 @@
 import { Response } from 'express';
 import { inject } from 'inversify';
 import { controller, httpPut, httpGet, httpPost, request, response } from 'inversify-express-utils';
-import { TYPES } from '../inversify.types';
-import { OrganizationConfigurationService, SafeConfig } from '../services/org/organization-configuration.service';
-import { Principal } from '../services/auth.service';
-import { UpdateSafeConfigDTO } from '../services/org/organization.dto';
-import { validate } from 'class-validator';
-import { plainToClass } from 'class-transformer';
+import { TYPES } from '../inversify.types.js';
+import { OrganizationConfigurationService, SafeConfig } from '../services/org/organization-configuration.service.js';
+import { Principal } from '../services/auth.service.js';
+import {
+    updateSafeConfigSchema,
+    validateSafeConfigSchema,
+    UpdateSafeConfigDTO
+} from '../validation/organization.validation.js';
 
 @controller('/api/v1/organization/configuration')
 export class OrganizationConfigurationController {
@@ -36,22 +38,25 @@ export class OrganizationConfigurationController {
     @response() res: Response,
   ): Promise<Response> {
     try {
-      // Validate DTO
-      const dto = plainToClass(UpdateSafeConfigDTO, req.body);
-      const validationErrors = await validate(dto);
+      // Validate request body using Joi schema
+      const { error, value } = validateSafeConfigSchema.validate(req.body, {
+        abortEarly: false,
+        stripUnknown: true
+      });
 
-      if (validationErrors.length > 0) {
+      if (error) {
         return res.status(400).json({
+          success: false,
           message: 'Validation failed',
-          errors: validationErrors.map(error => ({
-            property: error.property,
-            constraints: error.constraints
+          errors: error.details.map((detail: any) => ({
+            field: detail.path.join('.'),
+            message: detail.message
           }))
         });
       }
 
-      // Perform comprehensive validation
-      const validationResult = await this.organizationConfigurationService.validateSafeConfig(dto);
+      // Perform comprehensive blockchain validation
+      const validationResult = await this.organizationConfigurationService.validateSafeConfig(value);
 
       return res.status(200).json(validationResult);
     } catch (error) {
@@ -70,22 +75,25 @@ export class OrganizationConfigurationController {
     try {
       const { organizationId } = req.user;
 
-      // Validate DTO
-      const dto = plainToClass(UpdateSafeConfigDTO, req.body);
-      const validationErrors = await validate(dto);
+      // Validate request body using Joi schema
+      const { error, value } = updateSafeConfigSchema.validate(req.body, {
+        abortEarly: false,
+        stripUnknown: true
+      });
 
-      if (validationErrors.length > 0) {
+      if (error) {
         return res.status(400).json({
+          success: false,
           message: 'Validation failed',
-          errors: validationErrors.map(error => ({
-            property: error.property,
-            constraints: error.constraints
+          errors: error.details.map((detail: any) => ({
+            field: detail.path.join('.'),
+            message: detail.message
           }))
         });
       }
 
-      // Perform comprehensive validation before updating
-      const validationResult = await this.organizationConfigurationService.validateSafeConfig(dto);
+      // Perform comprehensive blockchain validation before updating
+      const validationResult = await this.organizationConfigurationService.validateSafeConfig(value);
 
       if (!validationResult.isValid) {
         return res.status(400).json({
@@ -98,7 +106,7 @@ export class OrganizationConfigurationController {
       // Update configuration
       const updatedOrganization = await this.organizationConfigurationService.updateSafeConfig(
         organizationId,
-        dto,
+        value,
       );
 
       return res.status(200).json({
