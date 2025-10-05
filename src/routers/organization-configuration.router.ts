@@ -1,13 +1,25 @@
 import { Router } from 'express';
-import { authenticate, isAdmin } from '../middleware/auth';
+import { injectable } from 'inversify';
+import { jwtMiddleware } from '../middleware/jwt.middleware.js';
+import { adminMiddleware } from '../middleware/admin.middleware.js';
+import { OrganizationConfigurationController } from '../controllers/organization-configuration.controller.js';
 
-// Note: The controller is not directly referenced here.
-// Inversify-express-utils handles the routing based on the controller's annotations.
+@injectable()
+export class OrganizationConfigurationRouter {
+  private readonly _router: Router;
 
-const organizationConfigurationRouter = Router();
+  constructor(private organizationConfigurationController: OrganizationConfigurationController) {
+    this._router = Router({ strict: true });
+    this.init();
+  }
 
-// Applying authentication and admin authorization middleware to all routes in this file.
-// The actual controller methods are linked by inversify-express-utils.
-organizationConfigurationRouter.use(authenticate, isAdmin);
+  private init(): void {
+    this._router.get('/supported-chains', this.organizationConfigurationController.getSupportedChains);
+    this._router.put('/safe-config', jwtMiddleware, adminMiddleware, this.organizationConfigurationController.updateSafeConfig);
+    this._router.post('/validate-safe-config', jwtMiddleware, adminMiddleware, this.organizationConfigurationController.validateSafeConfig);
+  }
 
-export { organizationConfigurationRouter };
+  public get router(): Router {
+    return this._router;
+  }
+}

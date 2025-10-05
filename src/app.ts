@@ -7,9 +7,9 @@ import { injectable } from 'inversify';
 import { UserRouter } from './routers/user.router.js';
 import { OrgRouter } from './routers/org.router.js';
 import { RoundsRouter } from './routers/rounds.router.js';
+import { OrganizationConfigurationRouter } from './routers/organization-configuration.router.js';
 import cors from 'cors';
 import { payoutRouter } from './routers/payout.router';
-import { organizationConfigurationRouter } from './routers/organization-configuration.router';
 
 @injectable()
 export class App {
@@ -17,7 +17,8 @@ export class App {
     constructor(
         private userRouter: UserRouter,
         private orgRouter: OrgRouter,
-        private roundsRouter: RoundsRouter
+        private roundsRouter: RoundsRouter,
+        private organizationConfigurationRouter: OrganizationConfigurationRouter
     ) {
         this._app = express();
         this.config();
@@ -53,10 +54,8 @@ export class App {
     _initRoutes(): void {
         this._app.use('/api/users', this.userRouter.router);
         this._app.use('/api/orgs', this.orgRouter.router);
-        this.app.use('/api/v1/payouts', payoutRouter);
-        this.app.use(
-          '/api/v1/organization/configuration',
-          organizationConfigurationRouter,
-        );
+        this._app.use('/api/rounds', this.roundsRouter.router);
+        this._app.use('/api/v1/organization/configuration', this.organizationConfigurationRouter.router);
+        this._app.use('/api/v1/payouts', payoutRouter);
     }
 }

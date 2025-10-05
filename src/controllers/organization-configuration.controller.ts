@@ -1,42 +1,35 @@
-import { Response } from 'express';
-import { inject } from 'inversify';
-import { controller, httpPut, httpGet, httpPost, request, response } from 'inversify-express-utils';
-import { TYPES } from '../inversify.types.js';
-import { OrganizationConfigurationService, SafeConfig } from '../services/org/organization-configuration.service.js';
-import { Principal } from '../services/auth.service.js';
+import { Request, Response } from 'express';
+import { injectable } from 'inversify';
+import { OrganizationConfigurationService } from '../services/org/organization-configuration.service.js';
 import {
     updateSafeConfigSchema,
     validateSafeConfigSchema,
     UpdateSafeConfigDTO
 } from '../validation/organization.validation.js';
 
-@controller('/api/v1/organization/configuration')
+interface AuthenticatedRequest extends Request {
+  user?: any;
+}
+
+@injectable()
 export class OrganizationConfigurationController {
   constructor(
-    @inject(TYPES.OrganizationConfigurationService)
     private organizationConfigurationService: OrganizationConfigurationService,
   ) {}
 
-  @httpGet('/chains')
-  public async getSupportedChains(
-    @response() res: Response,
-  ): Promise<Response> {
+  public getSupportedChains = async (req: Request, res: Response): Promise<void> => {
     try {
       const chains = this.organizationConfigurationService.getSupportedChains();
-      return res.status(200).json({ chains });
+      res.status(200).json({ chains });
     } catch (error) {
-      return res.status(500).json({
+      res.status(500).json({
         message: 'Failed to get supported chains',
         error: error instanceof Error ? error.message : 'Unknown error'
       });
     }
   }
 
-  @httpPost('/validate')
-  public async validateSafeConfig(
-    @request() req: { user: Principal; body: UpdateSafeConfigDTO },
-    @response() res: Response,
-  ): Promise<Response> {
+  public validateSafeConfig = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     try {
       // Validate request body using Joi schema
       const { error, value } = validateSafeConfigSchema.validate(req.body, {
@@ -45,7 +38,7 @@ export class OrganizationConfigurationController {
       });
 
       if (error) {
-        return res.status(400).json({
+        res.status(400).json({
           success: false,
           message: 'Validation failed',
           errors: error.details.map((detail: any) => ({
@@ -53,26 +46,28 @@ export class OrganizationConfigurationController {
             message: detail.message
           }))
         });
+        return;
       }
 
       // Perform comprehensive blockchain validation
       const validationResult = await this.organizationConfigurationService.validateSafeConfig(value);
 
-      return res.status(200).json(validationResult);
+      res.status(200).json(validationResult);
     } catch (error) {
-      return res.status(500).json({
+      res.status(500).json({
         message: 'Validation failed',
         error: error instanceof Error ? error.message : 'Unknown error'
       });
     }
   }
 
-  @httpPut('/')
-  public async updateSafeConfig(
-    @request() req: { user: Principal; body: UpdateSafeConfigDTO },
-    @response() res: Response,
-  ): Promise<Response> {
+  public updateSafeConfig = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     try {
+      if (!req.user?.organizationId) {
+        res.status(401).json({ message: 'Unauthorized' });
+        return;
+      }
+
       const { organizationId } = req.user;
 
       // Validate request body using Joi schema
@@ -82,7 +77,7 @@ export class OrganizationConfigurationController {
       });
 
       if (error) {
-        return res.status(400).json({
+        res.status(400).json({
           success: false,
           message: 'Validation failed',
           errors: error.details.map((detail: any) => ({
@@ -90,17 +85,19 @@ export class OrganizationConfigurationController {
             message: detail.message
           }))
         });
+        return;
       }
 
       // Perform comprehensive blockchain validation before updating
       const validationResult = await this.organizationConfigurationService.validateSafeConfig(value);
 
       if (!validationResult.isValid) {
-        return res.status(400).json({
+        res.status(400).json({
           message: 'Configuration validation failed',
           errors: validationResult.errors,
           warnings: validationResult.warnings
         });
+        return;
       }
 
       // Update configuration
@@ -109,7 +106,7 @@ export class OrganizationConfigurationController {
         value,
       );
 
-      return res.status(200).json({
+      res.status(200).json({
         message: 'Configuration updated successfully',
         organization: {
           id: updatedOrganization.id,
@@ -128,7 +125,7 @@ export class OrganizationConfigurationController {
         }
       });
     } catch (error) {
-      return res.status(500).json({
+      res.status(500).json({
         message: 'Failed to update configuration',
         error: error instanceof Error ? error.message : 'Unknown error'
       });
