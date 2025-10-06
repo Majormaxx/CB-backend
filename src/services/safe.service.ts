@@ -1,20 +1,20 @@
 import { ethers } from 'ethers';
-import Safe, { EthersAdapter } from '@safe-global/protocol-kit';
 import { SafeTransaction, SafeTransactionDataPartial } from '@safe-global/safe-core-sdk-types';
 import { SafeServiceError } from '../errors/safe.service.error.js';
 
 export class SafeService {
-  private safeSdk: Safe;
+  private safeSdk: any;
 
   constructor(private signer: ethers.Signer, private safeAddress: string) {}
 
   public async init(): Promise<void> {
     try {
-      const ethAdapter = new EthersAdapter({
-        ethers,
-        signerOrProvider: this.signer
+      const { default: SafeSDK } = await import('@safe-global/protocol-kit');
+      this.safeSdk = await (SafeSDK as any).init({
+        provider: this.signer.provider!,
+        signer: await this.signer.getAddress(),
+        safeAddress: this.safeAddress
       });
-      this.safeSdk = await Safe.create({ ethAdapter, safeAddress: this.safeAddress });
     } catch (error) {
       throw new SafeServiceError('Failed to initialize Safe Service');
     }
@@ -24,7 +24,7 @@ export class SafeService {
     try {
       const transactions: SafeTransactionDataPartial[] = recipients.map(recipient => ({
         to: recipient.to,
-        value: ethers.utils.parseUnits(recipient.value, 'ether').toString(),
+        value: ethers.parseUnits(recipient.value, 'ether').toString(),
         data: '0x'
       }));
       return await this.safeSdk.createTransaction({ safeTransactionData: transactions });

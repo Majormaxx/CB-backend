@@ -5,7 +5,6 @@ import { RoundService } from '../services/round.service.js';
 import { CreateAssessmentModel, createAssessmentSchema } from '../models/rounds/createAssessment.model.js';
 import { UserService } from '../services/user.service.js';
 import { Request } from 'express';
-import { AddTokenMintTxModel } from '../models/rounds/addTokenMintTx.model.js';
 
 @injectable()
 export class RoundsController {
@@ -110,11 +109,12 @@ export class RoundsController {
      */
     public editAssessment = async (req: Request, res: Response) => {
         try {
+            const assessmentId = req.params.assessmentId;
             const model: CreateAssessmentModel = req.body!;
-            const responseModel = await this.roundService.editAssessment(req.user!.walletAddress, model);
+            const responseModel = await this.roundService.editAssessment(assessmentId, req.user!.walletAddress, model);
             res.status(responseModel.statusCode).json(handleResponse(responseModel));
         } catch (error) {
-            console.error('Error editing an org:', error);
+            console.error('Error editing assessment:', error);
             res.status(500).send('Internal Server Error');
         }
     }
@@ -125,12 +125,12 @@ export class RoundsController {
     public getAssessments = async (req: Request, res: Response) => {
         try {
             const roundId = req.params.roundId;
-            const assessorId = req.query.assessorId;
-            const assessedId = req.query.assessedId;
+            const assessorId = typeof req.query.assessorId === 'string' ? req.query.assessorId : undefined;
+            const assessedId = typeof req.query.assessedId === 'string' ? req.query.assessedId : undefined;
             const createdResponseModel = await this.roundService.getAssessments(roundId, assessorId, assessedId);
             res.status(createdResponseModel.statusCode).json(handleResponse(createdResponseModel));
         } catch (error) {
-            console.error('Error editing an org:', error);
+            console.error('Error getting assessments:', error);
             res.status(500).send('Internal Server Error');
         }
     }
@@ -156,11 +156,11 @@ export class RoundsController {
      */
     public addTokenMintTx = async (req: Request, res: Response) => {
         try {
-            const model: AddTokenMintTxModel = req.body!;
-            const responseModel = await this.roundService.addTokenMintTx(req.user!.walletAddress, model);
+            const { roundId, txHash } = req.body;
+            const responseModel = await this.roundService.addTokenMintTx(roundId, txHash);
             res.status(responseModel.statusCode).json(handleResponse(responseModel));
         } catch (error) {
-            console.error('Error editing an org:', error);
+            console.error('Error adding token mint tx:', error);
             res.status(500).send('Internal Server Error');
         }
     }
