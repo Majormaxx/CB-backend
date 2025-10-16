@@ -1,7 +1,5 @@
 import { injectable } from 'inversify';
 import { ethers } from 'ethers';
-import SafeApiKit from '@safe-global/api-kit';
-import Safe from '@safe-global/protocol-kit';
 import { MetaTransactionData, OperationType } from '@safe-global/safe-core-sdk-types';
 import { Organization } from '../../entities/index.js';
 
@@ -20,8 +18,8 @@ export interface TransactionStatus {
 
 @injectable()
 export class SafeTransactionService {
-    private apiKit: SafeApiKit | null = null;
-    private protocolKit: Safe | null = null;
+    private apiKit: any | null = null;
+    private protocolKit: any | null = null;
 
     /**
      * Initialize the Safe SDK instances for a specific organization
@@ -31,24 +29,26 @@ export class SafeTransactionService {
             throw new Error('Organization does not have Safe configured');
         }
 
-        const chainId = BigInt(organization.safeChainId);
-        const rpcUrl = this.getRpcUrl(organization.safeChainId);
+        const chainId = BigInt(organization.safeChainId!);
+        const rpcUrl = this.getRpcUrl(organization.safeChainId!);
 
         // Initialize API Kit for transaction service interaction
-        this.apiKit = new SafeApiKit({
+        const { default: SafeApiKit } = await import('@safe-global/api-kit');
+        this.apiKit = new (SafeApiKit as any)({
             chainId,
             apiKey: process.env.SAFE_API_KEY
         });
 
         // Initialize Protocol Kit for transaction creation
+        const { default: Safe } = await import('@safe-global/protocol-kit');
         const provider = new ethers.JsonRpcProvider(rpcUrl);
-        
+
         // If signer private key provided, use it; otherwise use provider only (read-only mode)
-        const signer = signerPrivateKey 
+        const signer = signerPrivateKey
             ? new ethers.Wallet(signerPrivateKey, provider)
             : undefined;
 
-        this.protocolKit = await Safe.init({
+        this.protocolKit = await (Safe as any).init({
             provider: rpcUrl,
             signer: signer ? await signer.getAddress() : undefined,
             safeAddress: organization.safeAddress
@@ -109,7 +109,7 @@ export class SafeTransactionService {
         });
 
         // Generate Safe URL
-        const safeUrl = this.generateSafeUrl(organization.safeAddress, organization.safeChainId);
+        const safeUrl = this.generateSafeUrl(organization.safeAddress!, organization.safeChainId!);
 
         return {
             safeTxHash,

@@ -15,56 +15,56 @@ export enum PayoutRecipientStatus {
 @Entity('payout_recipients')
 export class PayoutRecipient {
     @PrimaryGeneratedColumn('uuid')
-    id: string;
+    id!: string;
 
     @ManyToOne(() => Payout)
-    payout: Payout;
+    payout!: Payout;
 
     @Column({ nullable: true })
-    roundCompensationId: string;
+    roundCompensationId!: string;
 
     @ManyToOne(() => User)
-    user: User;
+    user!: User;
 
     @Column()
-    walletAddressSnapshot: string;
+    walletAddressSnapshot!: string;
 
     @Column({ type: 'enum', enum: TokenType })
-    tokenType: TokenType;
+    tokenType!: TokenType;
 
     @Column()
-    tokenAddressSnapshot: string;
+    tokenAddressSnapshot!: string;
 
     @Column()
-    tokenDecimalsSnapshot: number;
+    tokenDecimalsSnapshot!: number;
 
     @Column({ type: 'decimal', precision: 18, scale: 6 })
-    amountHuman: number;
+    amountHuman!: number;
 
     @Column({ type: 'decimal', precision: 30, scale: 0 })
-    amountBaseUnits: string;
+    amountBaseUnits!: string;
 
     @ManyToOne(() => TxProposal)
-    txProposal: TxProposal;
+    txProposal!: TxProposal;
 
     @Column()
-    partIndex: number;
+    partIndex!: number;
 
     @Column()
-    partCount: number;
+    partCount!: number;
 
     @Column({ default: 1 })
-    attempt: number;
+    attempt!: number;
 
     @Column({ type: 'enum', enum: PayoutRecipientStatus, default: PayoutRecipientStatus.PENDING })
-    status: PayoutRecipientStatus;
+    status!: PayoutRecipientStatus;
 
     @Column({ nullable: true })
-    error: string;
+    error!: string;
 
     @CreateDateColumn()
-    createdAt: Date;
+    createdAt!: Date;
 
     @UpdateDateColumn()
-    updatedAt: Date;
+    updatedAt!: Date;
 }

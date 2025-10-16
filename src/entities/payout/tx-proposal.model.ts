@@ -21,44 +21,44 @@ export enum TxProposalStatus {
 @Entity('tx_proposals')
 export class TxProposal {
     @PrimaryGeneratedColumn('uuid')
-    id: string;
+    id!: string;
 
     @ManyToOne(() => Payout, (payout) => payout.txProposals)
-    payout: Payout;
+    payout!: Payout;
 
     @Column({ type: 'enum', enum: PayoutType })
-    payoutType: PayoutType;
+    payoutType!: PayoutType;
 
     @Column({ type: 'enum', enum: TokenType })
-    tokenType: TokenType;
+    tokenType!: TokenType;
 
     @Column()
-    partIndex: number;
+    partIndex!: number;
 
     @Column()
-    partCount: number;
+    partCount!: number;
 
     @Column({ default: 1 })
-    attempt: number;
+    attempt!: number;
 
     @Column({ type: 'uuid', nullable: true })
-    retryOfTxProposalId: string;
+    retryOfTxProposalId!: string;
 
     @Column({ nullable: true })
-    safeTxHash: string;
+    safeTxHash!: string;
 
     @Column({ type: 'enum', enum: TxProposalStatus, default: TxProposalStatus.PROPOSED })
-    status: TxProposalStatus;
+    status!: TxProposalStatus;
 
     @Column({ type: 'json', nullable: true })
-    payloadJson: any;
+    payloadJson!: any;
 
     @Column({ nullable: true })
-    explorerUrl: string;
+    explorerUrl!: string;
 
     @CreateDateColumn()
-    proposedAt: Date;
+    proposedAt!: Date;
 
     @UpdateDateColumn()
-    executedAt: Date;
+    executedAt!: Date;
 }

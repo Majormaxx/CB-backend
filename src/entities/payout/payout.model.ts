@@ -13,29 +13,29 @@ export enum PayoutStatus {
 @Entity('payouts')
 export class Payout {
     @PrimaryGeneratedColumn('uuid')
-    id: string;
+    id!: string;
 
     @ManyToOne(() => Organization)
-    organization: Organization;
+    organization!: Organization;
 
     @Column({ nullable: true })
-    roundId: string;
+    roundId!: string;
 
     @Column({ type: 'enum', enum: PayoutStatus, default: PayoutStatus.DRAFT })
-    status: PayoutStatus;
+    status!: PayoutStatus;
 
     @Column({ type: 'decimal', precision: 18, scale: 2, nullable: true })
-    totalStablePayout: number;
+    totalStablePayout!: number;
 
     @Column({ type: 'decimal', precision: 18, scale: 2, nullable: true })
-    totalRecognitionPayout: number;
+    totalRecognitionPayout!: number;
 
     @OneToMany(() => TxProposal, (txProposal) => txProposal.payout, { cascade: true })
-    txProposals: TxProposal[];
+    txProposals!: TxProposal[];
 
     @CreateDateColumn()
-    createdAt: Date;
+    createdAt!: Date;
 
     @UpdateDateColumn()
-    updatedAt: Date;
+    updatedAt!: Date;
 }
