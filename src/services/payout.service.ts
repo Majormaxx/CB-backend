@@ -8,6 +8,7 @@ import { Round } from '../entities/assessment/round.model.js';
 import { ContributorRoundCompensation } from '../entities/assessment/contributorCompensation.model.js';
 import { Organization, RecognitionTokenMode } from '../entities/org/organization.model.js';
 import { OrganizationConfigurationService } from './org/organization-configuration.service.js';
+import { SafeTransactionService } from './safe/safe-transaction.service.js';
 import { TYPES } from '../inversify.types.js';
 
 /**
@@ -58,7 +59,9 @@ export class PayoutService {
 
     constructor(
         @inject(TYPES.OrganizationConfigurationService)
-        private configService: OrganizationConfigurationService
+        private configService: OrganizationConfigurationService,
+        @inject(TYPES.SafeTransactionService)
+        private safeService: SafeTransactionService
     ) {
         this.payoutRepository = getRepository(Payout);
         this.payoutRecipientRepository = getRepository(PayoutRecipient);
@@ -263,13 +266,53 @@ export class PayoutService {
             }
         }
 
+        // Initialize Safe SDK
+        const organization = await this.organizationRepository.findOne({ where: { id: round.organization.id } });
+        if (!organization) {
+            throw new Error('Organization not found');
+        }
+
+        await this.safeService.initialize(organization);
+
+        // Create Safe transactions for each chunk
+        const txProposalsWithHashes = await this.txProposalRepository.find({
+            where: { payout: { id: payout.id } },
+            order: { partIndex: 'ASC' }
+        });
+
+        let safeUrl = '';
+        for (const txProposal of txProposalsWithHashes) {
+            const payload = JSON.parse(txProposal.payloadJson);
+            const recipients = payload.recipients.map((r: any) => ({
+                to: r.to,
+                value: r.amount,
+                data: '0x'
+            }));
+
+            // Create Safe transaction
+            const safeTransaction = await this.safeService.createMultiSendTransaction(recipients);
+
+            // Propose transaction to Safe Transaction Service
+            const result = await this.safeService.proposeTransaction(
+                safeTransaction,
+                organization.safeAddress!,
+                organization
+            );
+
+            // Update transaction proposal with real Safe transaction hash
+            txProposal.safeTxHash = result.safeTxHash;
+            txProposal.status = TxProposalStatus.PROPOSED;
+            await this.txProposalRepository.save(txProposal);
+
+            // Use the first transaction's Safe URL
+            if (!safeUrl) {
+                safeUrl = result.safeUrl;
+            }
+        }
+
         // Update payout status
         payout.status = PayoutStatus.PROPOSED;
         await this.payoutRepository.save(payout);
-
-        // TODO: Integrate with Safe SDK to create actual transaction
-        // For now, return mock Safe URL
-        const safeUrl = `https://app.safe.global/transactions/queue?safe=arb1:${preview.roundId}`;
 
         return {
             payoutId: payout.id,
@@ -296,6 +339,51 @@ export class PayoutService {
             where: { payout: { id: payout.id } },
             order: { partIndex: 'ASC' }
         });
+
+        // Initialize Safe SDK to poll transaction statuses
+        const round = await this.roundRepository.findOne({ where: { id: roundId } });
+        if (round) {
+            const organization = await this.organizationRepository.findOne({ where: { id: round.organization.id } });
+            if (organization && organization.safeAddress) {
+                await this.safeService.initialize(organization);
+
+                // Poll each transaction's status from Safe Transaction Service
+                for (const txProposal of txProposals) {
+                    if (txProposal.safeTxHash) {
+                        try {
+                            const txStatus = await this.safeService.getTransactionStatus(txProposal.safeTxHash);
+
+                            // Map Safe status to our TxProposalStatus
+                            let newStatus = txProposal.status;
+                            if (txStatus.status === 'EXECUTED') {
+                                newStatus = TxProposalStatus.EXECUTED;
+                            } else if (txStatus.status === 'AWAITING_EXECUTION') {
+                                newStatus = TxProposalStatus.CONFIRMED;
+                            } else if (txStatus.status === 'AWAITING_CONFIRMATIONS') {
+                                newStatus = TxProposalStatus.PROPOSED;
+                            } else if (txStatus.status === 'FAILED') {
+                                newStatus = TxProposalStatus.FAILED;
+                            }
+
+                            // Update database if status changed
+                            if (newStatus !== txProposal.status) {
+                                txProposal.status = newStatus;
+                                await this.txProposalRepository.save(txProposal);
+                            }
+                        } catch (error) {
+                            console.error(`Failed to poll status for tx ${txProposal.safeTxHash}:`, error);
+                        }
+                    }
+                }
+
+                // Update payout status based on transaction statuses
+                const allExecuted = txProposals.every(tx => tx.status === TxProposalStatus.EXECUTED);
+                if (allExecuted && payout.status !== PayoutStatus.EXECUTED) {
+                    payout.status = PayoutStatus.EXECUTED;
+                    await this.payoutRepository.save(payout);
+                }
+            }
+        }
 
         return {
             payoutId: payout.id,
