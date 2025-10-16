@@ -41,7 +41,7 @@ export class OrganizationController {
 
             // Call the organization service to create the organization
             const createdResponseModel = await this.organizationService.createOrganization(
-                req.user!.walletAddress,
+                req.user!.address,
                 { ...model, logo: logoUrl as string } // Pass the logo URL along with the model
             );
 
@@ -59,7 +59,7 @@ export class OrganizationController {
     public getInvitationToken = async (req: Request, res: Response) => {
         try {
             const invitationToken = await this.organizationService
-                .generateInvitationLink(req.user!.walletAddress);
+                .generateInvitationLink(req.user!.address);
             res.status(invitationToken.statusCode).json(handleResponse(invitationToken));
 
         } catch (error) {
@@ -95,7 +95,7 @@ export class OrganizationController {
             }
 
             const createdResponseModel = await this.organizationService.editOrganization
-                (req.user!.walletAddress, { ...model, logo: logoUrl as string });
+                (req.user!.address, { ...model, logo: logoUrl as string });
             res.status(createdResponseModel.statusCode).json(handleResponse(createdResponseModel));
 
         } catch (error) {
@@ -131,7 +131,7 @@ export class OrganizationController {
                 return res.status(400).json({ message: isValid.error.message });
             }
             const createdResponseModel = await this.organizationService.addAgreement(
-                req.user!.walletAddress,
+                req.user!.address,
                 agreement
             );
             res.status(createdResponseModel.statusCode).json(handleResponse(createdResponseModel));
@@ -155,7 +155,7 @@ export class OrganizationController {
                 return res.status(400).json({ message: isValid.error.message });
             }
             const createdResponseModel = await this.organizationService.editAgreement(
-                req.user!.walletAddress,
+                req.user!.address,
                 agreementId,
                 agreement);
             res.status(createdResponseModel.statusCode).json(handleResponse(createdResponseModel));
@@ -174,7 +174,7 @@ export class OrganizationController {
         try {
             const agreementId: string = req.params.agreementId;
             const createdResponseModel = await this.organizationService.removeAgreement(
-                req.user!.walletAddress,
+                req.user!.address,
                 agreementId);
             res.status(createdResponseModel.statusCode).json(handleResponse(createdResponseModel));
 
@@ -205,7 +205,7 @@ export class OrganizationController {
     public getMyScores = async (req: Request, res: Response) => {
         try {
             const createdResponseModel = await this.organizationService
-                .getScoresByWalletAddress(req.user!.walletAddress);
+                .getScoresByWalletAddress(req.user!.address);
             res.status(createdResponseModel.statusCode).json(handleResponse(createdResponseModel));
 
         } catch (error) {

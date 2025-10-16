@@ -3,8 +3,6 @@ import { getRepository, Repository } from 'typeorm';
 import { Organization, RecognitionTokenMode } from '../../entities/org/organization.model.js';
 import { validate } from 'class-validator';
 import { ethers } from 'ethers';
-import EthersAdapter from '@safe-global/safe-ethers-lib';
-import Safe from '@safe-global/safe-core-sdk';
 
 /**
  * Defines the structure for the Safe configuration data.
@@ -49,14 +47,13 @@ export class OrganizationConfigurationService {
             throw new Error('Invalid stablecoin address');
         }
 
-        const provider = new ethers.JsonRpcProvider(this.getRpcUrl(config.safeChainId));
-        const safeOwner = await EthersAdapter.create({
-            ethers,
-            signerOrProvider: provider
-        });
-
         // Validate Safe address by checking if it has owners (is a valid Safe)
-        const safeSdk = await Safe.create({ ethAdapter: safeOwner, safeAddress: config.safeAddress });
+        const provider = new ethers.JsonRpcProvider(this.getRpcUrl(config.safeChainId));
+        const { default: Safe } = await import('@safe-global/protocol-kit');
+        const safeSdk = await (Safe as any).init({
+            provider: this.getRpcUrl(config.safeChainId),
+            safeAddress: config.safeAddress
+        });
         const owners = await safeSdk.getOwners();
         if (owners.length === 0) {
             throw new Error('Safe address is not a valid Gnosis Safe or has no owners');
@@ -89,7 +86,7 @@ export class OrganizationConfigurationService {
 
             try {
                 const decimals = await tokenContract.decimals();
-                if (decimals !== BigInt(config.recognitionTokenDecimals)) {
+                if (config.recognitionTokenDecimals !== undefined && decimals !== BigInt(config.recognitionTokenDecimals)) {
                     throw new Error('Mismatch in recognition token decimals');
                 }
             } catch (error) {

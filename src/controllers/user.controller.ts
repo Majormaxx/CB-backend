@@ -65,7 +65,7 @@ export class UserController {
             const responseModel = await this.userService.registerUser({
                 ...model,
                 profilePicture: avatarUrl,
-                walletAddress: req.user!.walletAddress
+                walletAddress: req.user!.address
             });
             res.status(responseModel.statusCode).json(handleResponse(responseModel));
         } catch (error) {
@@ -80,7 +80,7 @@ export class UserController {
      */
     public getUserMe = async (req: Request, res: Response) => {
         try {
-            const responseModel = await this.userService.getByWalletAddress(req.user!.walletAddress);
+            const responseModel = await this.userService.getByWalletAddress(req.user!.address);
             res.status(responseModel.statusCode).json(handleResponse(responseModel));
         } catch (error) {
             console.error('Error getting user:', error);

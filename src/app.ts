@@ -9,7 +9,7 @@ import { OrgRouter } from './routers/org.router.js';
 import { RoundsRouter } from './routers/rounds.router.js';
 import { PayoutRouter } from './routers/payout.router.js';
 import cors from 'cors';
-import { organizationConfigurationRouter } from './routers/organization-configuration.router';
+import { organizationConfigurationRouter } from './routers/organization-configuration.router.js';
 
 @injectable()
 export class App {

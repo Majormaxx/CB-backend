@@ -21,7 +21,7 @@ export class RoundsController {
      */
     public getCurrentRound = async (req: Request, res: Response) => {
         try {
-            const walletAddress = req.user!.walletAddress;
+            const walletAddress = req.user!.address;
             const responseModel = await this.userService.getByWalletAddress(walletAddress);
             if (!responseModel.data?.organization?.id) {
                 return res.status(403).json({ message: 'User does not have an org' });
@@ -39,7 +39,7 @@ export class RoundsController {
      */
     public getRounds = async (req: Request, res: Response) => {
         try {
-            const walletAddress = req.user!.walletAddress;
+            const walletAddress = req.user!.address;
             const responseModel = await this.userService.getByWalletAddress(walletAddress);
             if (!responseModel.data?.organization?.id) {
                 return res.status(403).json({ message: 'User does not have an org' });
@@ -72,7 +72,7 @@ export class RoundsController {
     public editRound = async (req: Request, res: Response) => {
         try {
             const model = req.body;
-            const walletAddress = req.user!.walletAddress;
+            const walletAddress = req.user!.address;
             const responseModel = await this.userService.getByWalletAddress(walletAddress);
             if (!responseModel.data?.isAdmin) {
                 return res.status(403).json({ message: 'User is not an admin' });
@@ -96,7 +96,7 @@ export class RoundsController {
     public addAssessment = async (req: Request, res: Response) => {
         try {
             const model: CreateAssessmentModel = req.body!;
-            const responseModel = await this.roundService.addAssessment(req.user!.walletAddress, model);
+            const responseModel = await this.roundService.addAssessment(req.user!.address, model);
             res.status(responseModel.statusCode).json(handleResponse(responseModel));
         } catch (error) {
             console.error('Error editing an org:', error);
@@ -111,7 +111,8 @@ export class RoundsController {
     public editAssessment = async (req: Request, res: Response) => {
         try {
             const model: CreateAssessmentModel = req.body!;
-            const responseModel = await this.roundService.editAssessment(req.user!.walletAddress, model);
+            const assessmentId: string = req.params.assessmentId;
+            const responseModel = await this.roundService.editAssessment(assessmentId, req.user!.address, model);
             res.status(responseModel.statusCode).json(handleResponse(responseModel));
         } catch (error) {
             console.error('Error editing an org:', error);
@@ -125,8 +126,8 @@ export class RoundsController {
     public getAssessments = async (req: Request, res: Response) => {
         try {
             const roundId = req.params.roundId;
-            const assessorId = req.query.assessorId;
-            const assessedId = req.query.assessedId;
+            const assessorId = req.query.assessorId as string | undefined;
+            const assessedId = req.query.assessedId as string | undefined;
             const createdResponseModel = await this.roundService.getAssessments(roundId, assessorId, assessedId);
             res.status(createdResponseModel.statusCode).json(handleResponse(createdResponseModel));
         } catch (error) {
@@ -157,7 +158,7 @@ export class RoundsController {
     public addTokenMintTx = async (req: Request, res: Response) => {
         try {
             const model: AddTokenMintTxModel = req.body!;
-            const responseModel = await this.roundService.addTokenMintTx(req.user!.walletAddress, model);
+            const responseModel = await this.roundService.addTokenMintTx(model.roundId, model.txHash);
             res.status(responseModel.statusCode).json(handleResponse(responseModel));
         } catch (error) {
             console.error('Error editing an org:', error);
