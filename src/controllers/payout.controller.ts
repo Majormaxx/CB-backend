@@ -2,6 +2,10 @@ import { injectable, inject } from 'inversify';
 import { Request, Response } from 'express';
 import { PayoutService } from '../services/payout.service.js';
 import { TYPES } from '../inversify.types.js';
+import { payoutRoundsQuerySchema } from '../models/payout/payout-rounds-query.model.js';
+import { payoutPreviewQuerySchema } from '../models/payout/payout-preview-query.model.js';
+import { proposePayoutSchema } from '../models/payout/propose-payout.model.js';
+import { payoutStatusQuerySchema } from '../models/payout/payout-status-query.model.js';
 
 @injectable()
 export class PayoutController {
@@ -12,13 +16,13 @@ export class PayoutController {
      */
     public getIncompleteRounds = async (req: Request, res: Response): Promise<void> => {
         try {
-            const { orgId } = req.query;
-
-            if (!orgId) {
-                res.status(400).json({ error: 'Organization ID is required' });
+            const isValid = payoutRoundsQuerySchema.validate(req.query);
+            if (isValid.error) {
+                res.status(400).json({ message: isValid.error.message });
                 return;
             }
 
+            const { orgId } = req.query;
             const rounds = await this.payoutService.getIncompleteRounds(orgId as string);
             res.status(200).json(rounds);
         } catch (error: any) {
@@ -31,13 +35,13 @@ export class PayoutController {
      */
     public previewPayout = async (req: Request, res: Response): Promise<void> => {
         try {
-            const { roundId } = req.query;
-
-            if (!roundId) {
-                res.status(400).json({ error: 'Round ID is required' });
+            const isValid = payoutPreviewQuerySchema.validate(req.query);
+            if (isValid.error) {
+                res.status(400).json({ message: isValid.error.message });
                 return;
             }
 
+            const { roundId } = req.query;
             const preview = await this.payoutService.previewPayout(roundId as string);
             res.status(200).json(preview);
         } catch (error: any) {
@@ -50,18 +54,13 @@ export class PayoutController {
      */
     public proposePayout = async (req: Request, res: Response): Promise<void> => {
         try {
+            const isValid = proposePayoutSchema.validate(req.body);
+            if (isValid.error) {
+                res.status(400).json({ message: isValid.error.message });
+                return;
+            }
+
             const { roundId, tokenType } = req.body;
-
-            if (!roundId || !tokenType) {
-                res.status(400).json({ error: 'Round ID and token type are required' });
-                return;
-            }
-
-            if (!['STABLECOIN', 'RECOGNITION'].includes(tokenType)) {
-                res.status(400).json({ error: 'Token type must be STABLECOIN or RECOGNITION' });
-                return;
-            }
-
             const proposal = await this.payoutService.proposePayout(roundId, tokenType);
             res.status(200).json(proposal);
         } catch (error: any) {
@@ -74,13 +73,13 @@ export class PayoutController {
      */
     public getPayoutStatus = async (req: Request, res: Response): Promise<void> => {
         try {
-            const { roundId } = req.query;
-
-            if (!roundId) {
-                res.status(400).json({ error: 'Round ID is required' });
+            const isValid = payoutStatusQuerySchema.validate(req.query);
+            if (isValid.error) {
+                res.status(400).json({ message: isValid.error.message });
                 return;
             }
 
+            const { roundId } = req.query;
             const status = await this.payoutService.getPayoutStatus(roundId as string);
             res.status(200).json(status);
         } catch (error: any) {
