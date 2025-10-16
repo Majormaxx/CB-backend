@@ -19,8 +19,7 @@ export class OrganizationConfigurationController {
     @response() res: Response,
   ): Promise<Response> {
     try {
-      // TODO: Implement getSupportedChains method in OrganizationConfigurationService
-      const chains: any[] = [];
+      const chains = this.organizationConfigurationService.getSupportedChains();
       return res.status(200).json({ chains });
     } catch (error) {
       return res.status(500).json({
@@ -51,8 +50,7 @@ export class OrganizationConfigurationController {
       }
 
       // Perform comprehensive validation
-      // TODO: Implement validateSafeConfig method in OrganizationConfigurationService
-      const validationResult = { valid: true };
+      const validationResult = await this.organizationConfigurationService.validateSafeConfig(dto);
 
       return res.status(200).json(validationResult);
     } catch (error) {
@@ -86,8 +84,7 @@ export class OrganizationConfigurationController {
       }
 
       // Perform comprehensive validation before updating
-      // TODO: Implement validateSafeConfig method in OrganizationConfigurationService
-      const validationResult: any = { isValid: true };
+      const validationResult = await this.organizationConfigurationService.validateSafeConfig(dto);
 
       if (!validationResult.isValid) {
         return res.status(400).json({

@@ -26,6 +26,194 @@ export class OrganizationConfigurationService {
     }
 
     /**
+     * Returns the list of supported blockchain networks.
+     * @returns Array of supported chain configurations
+     */
+    public getSupportedChains(): Array<{ chainId: number; name: string; rpcUrl: string }> {
+        return [
+            {
+                chainId: 42161,
+                name: 'Arbitrum One',
+                rpcUrl: 'https://arb1.arbitrum.io/rpc'
+            }
+        ];
+    }
+
+    /**
+     * Validates Safe configuration without saving to database.
+     * @param config The Safe configuration to validate
+     * @returns Validation result with errors, warnings, and metadata
+     */
+    public async validateSafeConfig(config: SafeConfig): Promise<{
+        isValid: boolean;
+        errors: string[];
+        warnings: string[];
+        safeInfo?: {
+            owners: string[];
+            threshold: number;
+        };
+        tokenInfo?: {
+            stablecoin: {
+                name?: string;
+                symbol?: string;
+                decimals: number;
+            };
+            recognition?: {
+                name?: string;
+                symbol?: string;
+                decimals: number;
+                balance?: string;
+                hasMintingRole?: boolean;
+            };
+        };
+    }> {
+        const errors: string[] = [];
+        const warnings: string[] = [];
+        let safeInfo: any = undefined;
+        let tokenInfo: any = undefined;
+
+        // Validate Safe address format
+        if (!ethers.isAddress(config.safeAddress)) {
+            errors.push('Invalid Safe address format');
+            return { isValid: false, errors, warnings };
+        }
+
+        // Validate stablecoin address format
+        if (!ethers.isAddress(config.stablecoinAddress)) {
+            errors.push('Invalid stablecoin address format');
+            return { isValid: false, errors, warnings };
+        }
+
+        try {
+            const provider = new ethers.JsonRpcProvider(this.getRpcUrl(config.safeChainId));
+
+            // Validate Safe address by checking if it has owners
+            const { default: Safe } = await import('@safe-global/protocol-kit');
+            const safeSdk = await (Safe as any).init({
+                provider: this.getRpcUrl(config.safeChainId),
+                safeAddress: config.safeAddress
+            });
+            const owners = await safeSdk.getOwners();
+            const threshold = await safeSdk.getThreshold();
+
+            if (owners.length === 0) {
+                errors.push('Safe address is not a valid Gnosis Safe or has no owners');
+            } else {
+                safeInfo = {
+                    owners,
+                    threshold
+                };
+            }
+
+            // Validate stablecoin contract and decimals
+            const stablecoinAbi = [
+                'function decimals() view returns (uint8)',
+                'function name() view returns (string)',
+                'function symbol() view returns (string)'
+            ];
+            const stablecoinContract = new ethers.Contract(config.stablecoinAddress, stablecoinAbi, provider);
+            try {
+                const decimals = await stablecoinContract.decimals();
+                const name = await stablecoinContract.name().catch(() => undefined);
+                const symbol = await stablecoinContract.symbol().catch(() => undefined);
+
+                tokenInfo = {
+                    stablecoin: {
+                        name,
+                        symbol,
+                        decimals: Number(decimals)
+                    }
+                };
+
+                if (decimals !== BigInt(config.stablecoinDecimals)) {
+                    errors.push(`Stablecoin decimals mismatch: expected ${config.stablecoinDecimals}, got ${decimals}`);
+                }
+            } catch (error) {
+                errors.push('Invalid stablecoin contract or unable to fetch decimals');
+            }
+
+            // Validate recognition token if provided
+            if (config.recognitionTokenMode !== RecognitionTokenMode.NONE && config.recognitionTokenAddress) {
+                if (!ethers.isAddress(config.recognitionTokenAddress)) {
+                    errors.push('Invalid recognition token address format');
+                } else {
+                    const tokenAbi = [
+                        'function decimals() view returns (uint8)',
+                        'function name() view returns (string)',
+                        'function symbol() view returns (string)',
+                        'function MINTER_ROLE() view returns (bytes32)',
+                        'function hasRole(bytes32 role, address account) view returns (bool)',
+                        'function balanceOf(address account) view returns (uint256)'
+                    ];
+                    const tokenContract = new ethers.Contract(config.recognitionTokenAddress, tokenAbi, provider);
+
+                    try {
+                        const decimals = await tokenContract.decimals();
+                        const name = await tokenContract.name().catch(() => undefined);
+                        const symbol = await tokenContract.symbol().catch(() => undefined);
+
+                        if (config.recognitionTokenDecimals !== undefined && decimals !== BigInt(config.recognitionTokenDecimals)) {
+                            errors.push(`Recognition token decimals mismatch: expected ${config.recognitionTokenDecimals}, got ${decimals}`);
+                        }
+
+                        if (!tokenInfo) tokenInfo = { stablecoin: { decimals: config.stablecoinDecimals } };
+                        tokenInfo.recognition = {
+                            name,
+                            symbol,
+                            decimals: Number(decimals)
+                        };
+                    } catch (error) {
+                        errors.push('Invalid recognition token contract or unable to fetch decimals');
+                    }
+
+                    // Check minting permission for MINT mode
+                    if (config.recognitionTokenMode === RecognitionTokenMode.MINT) {
+                        const hasMintingPermission = await this.validateMintingPermission(
+                            config.safeAddress,
+                            config.recognitionTokenAddress,
+                            provider
+                        );
+                        if (tokenInfo?.recognition) {
+                            tokenInfo.recognition.hasMintingRole = hasMintingPermission;
+                        }
+                        if (!hasMintingPermission) {
+                            errors.push(
+                                `Safe address does not have minting permission on the recognition token. ` +
+                                'The Safe must have MINTER_ROLE, ADMIN_ROLE, or be the contract owner.'
+                            );
+                        }
+                    }
+
+                    // Check balance for TRANSFER mode
+                    if (config.recognitionTokenMode === RecognitionTokenMode.TRANSFER) {
+                        try {
+                            const balance = await tokenContract.balanceOf(config.safeAddress);
+                            if (tokenInfo?.recognition) {
+                                tokenInfo.recognition.balance = balance.toString();
+                            }
+                            if (balance <= 0) {
+                                warnings.push('Safe address has no balance of the recognition token');
+                            }
+                        } catch (error) {
+                            errors.push('Could not verify the recognition token balance of the Safe address');
+                        }
+                    }
+                }
+            }
+        } catch (error) {
+            errors.push(`Validation error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+
+        return {
+            isValid: errors.length === 0,
+            errors,
+            warnings,
+            safeInfo,
+            tokenInfo
+        };
+    }
+
+    /**
      * Updates the Safe configuration for a given organization.
      *
      * @param organizationId The ID of the organization to update.
