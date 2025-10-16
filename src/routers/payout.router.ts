@@ -1,14 +1,24 @@
 import { Router } from 'express';
-import { container } from '../inversify.config.js';
+import { injectable } from 'inversify';
 import { PayoutController } from '../controllers/payout.controller.js';
 
-const router = Router();
-const payoutController = container.get<PayoutController>(PayoutController);
+@injectable()
+export class PayoutRouter {
+    private readonly _router: Router;
 
-// Module II API Endpoints - exactly as specified in the document
-router.get('/rounds', payoutController.getIncompleteRounds);     // GET /payouts/rounds?orgId=
-router.get('/preview', payoutController.previewPayout);         // GET /payouts/preview?roundId=
-router.post('/propose', payoutController.proposePayout);        // POST /payouts/propose { roundId, tokenType }
-router.get('/status', payoutController.getPayoutStatus);        // GET /payouts/status?roundId=
+    constructor(private controller: PayoutController) {
+        this._router = Router({ strict: true });
+        this.init();
+    }
 
-export { router as payoutRouter };
+    private init(): void {
+        this._router.get('/rounds', this.controller.getIncompleteRounds);
+        this._router.get('/preview', this.controller.previewPayout);
+        this._router.post('/propose', this.controller.proposePayout);
+        this._router.get('/status', this.controller.getPayoutStatus);
+    }
+
+    public get router(): Router {
+        return this._router;
+    }
+}
