@@ -43,6 +43,7 @@
     "postmark": "^4.0.5",
     "reflect-metadata": "^0.2.2",
     "siwe": "^2.3.2",
+    "sqlite3": "^5.1.7",
     "tslint-config-prettier": "^1.18.0",
     "typeorm": "^0.3.20",
     "uuid": "^8.3.2"

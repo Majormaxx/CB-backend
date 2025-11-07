@@ -1,5 +1,5 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne } from 'typeorm';
-import { Payout } from './payout.model.js';
+import { Payout } from './index.js';
 
 export enum PayoutType {
     ROUND = 'round',
@@ -26,10 +26,10 @@ export class TxProposal {
     @ManyToOne(() => Payout, (payout) => payout.txProposals)
     payout!: Payout;
 
-    @Column({ type: 'enum', enum: PayoutType })
+    @Column({ type: 'simple-enum', enum: PayoutType })
     payoutType!: PayoutType;
 
-    @Column({ type: 'enum', enum: TokenType })
+    @Column({ type: 'simple-enum', enum: TokenType })
     tokenType!: TokenType;
 
     @Column()
@@ -47,7 +47,7 @@ export class TxProposal {
     @Column({ nullable: true })
     safeTxHash!: string;
 
-    @Column({ type: 'enum', enum: TxProposalStatus, default: TxProposalStatus.PROPOSED })
+    @Column({ type: 'simple-enum', enum: TxProposalStatus, default: TxProposalStatus.PROPOSED })
     status!: TxProposalStatus;
 
     @Column({ type: 'json', nullable: true })

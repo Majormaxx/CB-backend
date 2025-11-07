@@ -22,7 +22,7 @@ export class User {
     @Column({ type: 'varchar', nullable: true })
     profilePicture?: string;
 
-    @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
+    @Column({ type: 'datetime', default: () => 'CURRENT_TIMESTAMP' })
     registeredOn!: Date;
 
     @OneToOne(() => Agreement, { nullable: true, cascade: true })

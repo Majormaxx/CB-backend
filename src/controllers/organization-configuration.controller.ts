@@ -11,12 +11,12 @@ import { plainToClass } from 'class-transformer';
 export class OrganizationConfigurationController {
   constructor(
     @inject(TYPES.OrganizationConfigurationService)
-    private organizationConfigurationService: OrganizationConfigurationService,
+    private organizationConfigurationService: OrganizationConfigurationService
   ) {}
 
   @httpGet('/chains')
   public async getSupportedChains(
-    @response() res: Response,
+    @response() res: Response
   ): Promise<Response> {
     try {
       const chains = this.organizationConfigurationService.getSupportedChains();
@@ -32,7 +32,7 @@ export class OrganizationConfigurationController {
   @httpPost('/validate')
   public async validateSafeConfig(
     @request() req: { user: any; body: UpdateSafeConfigDTO },
-    @response() res: Response,
+    @response() res: Response
   ): Promise<Response> {
     try {
       // Validate DTO
@@ -64,7 +64,7 @@ export class OrganizationConfigurationController {
   @httpPut('/')
   public async updateSafeConfig(
     @request() req: { user: any; body: UpdateSafeConfigDTO },
-    @response() res: Response,
+    @response() res: Response
   ): Promise<Response> {
     try {
       const { organizationId } = req.user;
@@ -97,7 +97,7 @@ export class OrganizationConfigurationController {
       // Update configuration
       const updatedOrganization = await this.organizationConfigurationService.updateSafeConfig(
         organizationId,
-        dto,
+        dto
       );
 
       return res.status(200).json({

@@ -1,6 +1,6 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, OneToMany } from 'typeorm';
 import { Organization } from '../org/organization.model.js';
-import { TxProposal } from './tx-proposal.model.js';
+import { TxProposal } from './index.js';
 
 export enum PayoutStatus {
     DRAFT = 'draft',
@@ -21,7 +21,7 @@ export class Payout {
     @Column({ nullable: true })
     roundId!: string;
 
-    @Column({ type: 'enum', enum: PayoutStatus, default: PayoutStatus.DRAFT })
+    @Column({ type: 'simple-enum', enum: PayoutStatus, default: PayoutStatus.DRAFT })
     status!: PayoutStatus;
 
     @Column({ type: 'decimal', precision: 18, scale: 2, nullable: true })

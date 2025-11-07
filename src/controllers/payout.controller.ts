@@ -6,6 +6,7 @@ import { payoutRoundsQuerySchema } from '../models/payout/payout-rounds-query.mo
 import { payoutPreviewQuerySchema } from '../models/payout/payout-preview-query.model.js';
 import { proposePayoutSchema } from '../models/payout/propose-payout.model.js';
 import { payoutStatusQuerySchema } from '../models/payout/payout-status-query.model.js';
+import { TokenType } from '../entities/payout/tx-proposal.model.js';
 
 @injectable()
 export class PayoutController {
@@ -50,7 +51,9 @@ export class PayoutController {
     }
 
     /**
-     * POST /payouts/propose { roundId, tokenType } → Build batched calls, create Safe transaction, propose it, store proposal, return Safe link
+     * POST /payouts/propose { roundId, tokenType } →
+     * Build batched calls, create Safe transaction, propose it, store proposal,
+     *  return Safe link
      */
     public proposePayout = async (req: Request, res: Response): Promise<void> => {
         try {
@@ -60,8 +63,10 @@ export class PayoutController {
                 return;
             }
 
-            const { roundId, tokenType } = req.body;
-            const proposal = await this.payoutService.proposePayout(roundId, tokenType);
+            const { roundId, tokenType } = req.body as { roundId: string; tokenType: 'STABLECOIN' | 'RECOGNITION' };
+            const mappedTokenType: TokenType = tokenType === 'STABLECOIN' ? TokenType.STABLECOIN : TokenType.RECOGNITION;
+
+            const proposal = await this.payoutService.proposePayout(roundId, mappedTokenType);
             res.status(200).json(proposal);
         } catch (error: any) {
             res.status(500).json({ error: error.message });

@@ -1,15 +1,22 @@
 import { injectable, inject } from 'inversify';
-import { getRepository, Repository, IsNull } from 'typeorm';
+import { Repository, IsNull } from 'typeorm';
+import { AppDataSource } from '../data-source.js';
 import { ethers } from 'ethers';
 import { Payout, PayoutStatus } from '../entities/payout/payout.model.js';
 import { PayoutRecipient, PayoutRecipientStatus } from '../entities/payout/payout-recipient.model.js';
-import { TxProposal, TokenType, TxProposalStatus } from '../entities/payout/tx-proposal.model.js';
+import { TxProposal, TokenType, TxProposalStatus, PayoutType } from '../entities/payout/tx-proposal.model.js';
 import { Round } from '../entities/assessment/round.model.js';
 import { ContributorRoundCompensation } from '../entities/assessment/contributorCompensation.model.js';
 import { Organization, RecognitionTokenMode } from '../entities/org/organization.model.js';
+import { NotFoundError } from '../errors/not-found.error.js';
+import { InvalidDataError } from '../errors/invalid-data.error.js';
+import { TYPES } from '../inversify.types.js';
 import { OrganizationConfigurationService } from './org/organization-configuration.service.js';
 import { SafeTransactionService } from './safe/safe-transaction.service.js';
-import { TYPES } from '../inversify.types.js';
+
+const MAX_RECIPIENTS_PER_BATCH = 200;
+const GAS_LIMIT = 3000000;
+const CALLDATA_LIMIT = 100000;
 
 /**
  * Interface for payout preview response
@@ -46,6 +53,8 @@ export interface PayoutRecipientPreview {
     recognitionAmount: number;
     stablecoinAmountBaseUnits: string;
     recognitionAmountBaseUnits: string;
+    userId: string;
+    roundCompensationId: string;
 }
 
 @injectable()
@@ -63,12 +72,12 @@ export class PayoutService {
         @inject(TYPES.SafeTransactionService)
         private safeService: SafeTransactionService
     ) {
-        this.payoutRepository = getRepository(Payout);
-        this.payoutRecipientRepository = getRepository(PayoutRecipient);
-        this.txProposalRepository = getRepository(TxProposal);
-        this.roundRepository = getRepository(Round);
-        this.compensationRepository = getRepository(ContributorRoundCompensation);
-        this.organizationRepository = getRepository(Organization);
+        this.payoutRepository = AppDataSource.getRepository(Payout);
+        this.payoutRecipientRepository = AppDataSource.getRepository(PayoutRecipient);
+        this.txProposalRepository = AppDataSource.getRepository(TxProposal);
+        this.roundRepository = AppDataSource.getRepository(Round);
+        this.compensationRepository = AppDataSource.getRepository(ContributorRoundCompensation);
+        this.organizationRepository = AppDataSource.getRepository(Organization);
     }
 
     /**
@@ -100,12 +109,12 @@ export class PayoutService {
         });
 
         if (!round) {
-            throw new Error('Round not found');
+            throw new NotFoundError('Round not found');
         }
 
         const organization = round.organization;
         if (!organization.safeAddress) {
-            throw new Error('Organization Safe not configured');
+            throw new InvalidDataError('Organization Safe not configured');
         }
 
         // Get compensation data for this round
@@ -115,7 +124,7 @@ export class PayoutService {
         });
 
         if (compensations.length === 0) {
-            throw new Error('No compensation data found for this round');
+            throw new NotFoundError('No compensation data found for this round');
         }
 
         // Build recipient preview data with human + base-unit amounts
@@ -150,7 +159,9 @@ export class PayoutService {
                 stablecoinAmount: comp.fiat || 0,
                 recognitionAmount: comp.tp || 0,
                 stablecoinAmountBaseUnits,
-                recognitionAmountBaseUnits
+                recognitionAmountBaseUnits,
+                userId: (comp.contributor as any)?.id,
+                roundCompensationId: comp.id
             });
         }
 
@@ -170,7 +181,8 @@ export class PayoutService {
             : { totalChunks: 0, maxRecipientsPerChunk: 0, estimatedChunks: [] };
 
         const recognitionChunkPlan = recipients.some(r => r.recognitionAmount > 0)
-            ? await this.planChunks(recipients.filter(r => r.recognitionAmount > 0), organization, TokenType.RECOGNITION)
+            ? await this.planChunks(recipients.
+                filter(r => r.recognitionAmount > 0), organization, TokenType.RECOGNITION)
             : { totalChunks: 0, maxRecipientsPerChunk: 0, estimatedChunks: [] };
 
         const chunkPlan = {
@@ -200,7 +212,7 @@ export class PayoutService {
         const preview = await this.previewPayout(roundId);
 
         if (preview.preflightChecks.warnings.length > 0) {
-            throw new Error(`Preflight checks failed: ${preview.preflightChecks.warnings.join(', ')}`);
+            throw new InvalidDataError(`Preflight checks failed: ${preview.preflightChecks.warnings.join(', ')}`);
         }
 
         // Create payout record
@@ -224,8 +236,11 @@ export class PayoutService {
         });
 
         if (!round) {
-            throw new Error('Round not found');
+            throw new NotFoundError('Round not found');
         }
+        // Ensure payout is associated with organization for DB integrity
+        payout.organization = round.organization as any;
+        await this.payoutRepository.save(payout);
 
         // Create chunks using dynamic gas-based estimation as specified
         const chunkPlan = await this.planChunks(relevantRecipients, round.organization, tokenType);
@@ -237,7 +252,8 @@ export class PayoutService {
 
             // Create tx proposal record
             const txProposal = this.txProposalRepository.create({
-                payout: payout,
+                payout,
+                payoutType: PayoutType.ROUND,
                 tokenType,
                 status: TxProposalStatus.PROPOSED,
                 partIndex: i + 1,
@@ -255,11 +271,23 @@ export class PayoutService {
             // Create payout recipient records
             for (const recipient of chunk) {
                 const payoutRecipient = this.payoutRecipientRepository.create({
-                    payout: payout,
+                    payout,
+                    roundCompensationId: recipient.roundCompensationId,
+                    user: { id: recipient.userId } as any,
                     walletAddressSnapshot: recipient.walletAddress,
                     tokenType,
+                    tokenAddressSnapshot: tokenType === TokenType.STABLECOIN
+                        ? (round.organization as any).stablecoinAddress!
+                        : (round.organization as any).recognitionTokenAddress!,
+                    tokenDecimalsSnapshot: tokenType === TokenType.STABLECOIN
+                        ? ((round.organization as any).stablecoinDecimals ?? 6)
+                        : ((round.organization as any).recognitionTokenDecimals ?? 18),
                     amountHuman: tokenType === TokenType.STABLECOIN ? recipient.stablecoinAmount : recipient.recognitionAmount,
                     amountBaseUnits: tokenType === TokenType.STABLECOIN ? recipient.stablecoinAmountBaseUnits : recipient.recognitionAmountBaseUnits,
+                    txProposal,
+                    partIndex: i + 1,
+                    partCount: chunks.length,
+                    attempt: 1,
                     status: PayoutRecipientStatus.PROPOSED
                 });
                 await this.payoutRecipientRepository.save(payoutRecipient);
@@ -269,7 +297,7 @@ export class PayoutService {
         // Initialize Safe SDK
         const organization = await this.organizationRepository.findOne({ where: { id: round.organization.id } });
         if (!organization) {
-            throw new Error('Organization not found');
+            throw new NotFoundError('Organization not found');
         }
 
         await this.safeService.initialize(organization);
@@ -283,11 +311,24 @@ export class PayoutService {
         let safeUrl = '';
         for (const txProposal of txProposalsWithHashes) {
             const payload = JSON.parse(txProposal.payloadJson);
-            const recipients = payload.recipients.map((r: any) => ({
-                to: r.to,
-                value: r.amount,
-                data: '0x'
-            }));
+
+            // Build ERC20 transfer calls for MultiSend: to = tokenAddress, value = '0', data = transfer(recipient, amount)
+            const tokenAddress = txProposal.tokenType === TokenType.STABLECOIN
+                ? organization.stablecoinAddress!
+                : organization.recognitionTokenAddress!;
+
+            const recipients = payload.recipients.map((r: any) => {
+                const data = ethers.concat([
+                    '0xa9059cbb',
+                    ethers.zeroPadValue(r.to, 32),
+                    ethers.zeroPadValue(ethers.toBeHex(BigInt(r.amount)), 32)
+                ]);
+                return {
+                    to: tokenAddress,
+                    value: '0',
+                    data
+                };
+            });
 
             // Create Safe transaction
             const safeTransaction = await this.safeService.createMultiSendTransaction(recipients);
@@ -341,9 +382,9 @@ export class PayoutService {
         });
 
         // Initialize Safe SDK to poll transaction statuses
-        const round = await this.roundRepository.findOne({ where: { id: roundId } });
+        const round = await this.roundRepository.findOne({ where: { id: roundId }, relations: ['organization'] });
         if (round) {
-            const organization = await this.organizationRepository.findOne({ where: { id: round.organization.id } });
+            const organization = await this.organizationRepository.findOne({ where: { id: (round as any).organization.id } });
             if (organization && organization.safeAddress) {
                 await this.safeService.initialize(organization);
 
@@ -486,17 +527,13 @@ export class PayoutService {
         organization: Organization,
         tokenType: TokenType
     ): Promise<{ totalChunks: number; maxRecipientsPerChunk: number; estimatedChunks: PayoutRecipientPreview[][] }> {
-        const gasLimit = 3000000; // Safe transaction gas limit
-        const calldataLimit = 100000; // Approximate calldata size limit
-        const maxRecipientsPerBatch = 200; // Start with up to 200 recipients as specified
-
-        // Split recipients into initial batches of up to 200 recipients
-        const initialBatches = this.createChunks(recipients, maxRecipientsPerBatch);
+        // Split recipients into initial batches of up to MAX_RECIPIENTS_PER_BATCH recipients
+        const initialBatches = this.createChunks(recipients, MAX_RECIPIENTS_PER_BATCH);
 
         // Apply recursive gas-based chunking to each initial batch
         const allChunks: PayoutRecipientPreview[][] = [];
         for (const batch of initialBatches) {
-            const batchChunks = await this.recursiveChunking(batch, organization, tokenType, gasLimit, calldataLimit);
+            const batchChunks = await this.recursiveChunking(batch, organization, tokenType, GAS_LIMIT, CALLDATA_LIMIT);
             allChunks.push(...batchChunks);
         }
 
@@ -521,7 +558,7 @@ export class PayoutService {
         gasLimit: number,
         calldataLimit: number
     ): Promise<PayoutRecipientPreview[][]> {
-        if (recipients.length === 0) return [];
+        if (recipients.length === 0) { return []; }
 
         try {
             // Build MultiSend transaction for gas estimation
@@ -538,7 +575,7 @@ export class PayoutService {
 
             // If exceeds limits and only 1 recipient, we have a problem
             if (recipients.length === 1) {
-                throw new Error(`Single recipient transaction exceeds gas/calldata limits: gas=${estimatedGas}, calldata=${calldataSize}`);
+                throw new InvalidDataError(`Single recipient transaction exceeds gas/calldata limits: gas=${estimatedGas}, calldata=${calldataSize}`);
             }
 
             // Split in half and recursively chunk each half
@@ -556,7 +593,7 @@ export class PayoutService {
         } catch (error) {
             // Fallback: if gas estimation fails, split in half
             if (recipients.length === 1) {
-                throw new Error(`Cannot chunk single recipient: ${error}`);
+                throw new InvalidDataError(`Cannot chunk single recipient: ${error}`);
             }
 
             const midpoint = Math.floor(recipients.length / 2);
@@ -602,7 +639,7 @@ export class PayoutService {
 
         const rpcUrl = rpcUrls[chainId];
         if (!rpcUrl) {
-            throw new Error(`Unsupported chain ID: ${chainId}`);
+            throw new NotFoundError(`Unsupported chain ID: ${chainId}`);
         }
 
         return rpcUrl;
@@ -635,7 +672,7 @@ export class PayoutService {
             const transferData = ethers.concat([
                 '0xa9059cbb', // transfer(address,uint256) function selector
                 ethers.zeroPadValue(recipient.walletAddress, 32), // recipient address padded to 32 bytes
-                ethers.zeroPadValue(ethers.toBeHex(amount), 32) // amount padded to 32 bytes
+                ethers.zeroPadValue(ethers.toBeHex(BigInt(amount)), 32) // amount padded to 32 bytes
             ]);
 
             return {

@@ -1,4 +1,5 @@
-import { injectable } from 'inversify';
+import { inject, injectable } from 'inversify';
+import { TYPES } from '../inversify.types.js';
 import { v4 as uuidv4 } from 'uuid';
 import { AppDataSource } from '../data-source.js';
 import { ResponseModel } from '../models/response_models/response_model.js';
@@ -24,7 +25,7 @@ export class OrganizationService {
     private agreementRepository;
     private roundsRepository;
 
-    constructor(private roundsService: RoundService) {
+    constructor(@inject(TYPES.RoundService) private roundsService: RoundService) {
         this.userRepository = AppDataSource.getRepository(User);
         this.organizationRepository = AppDataSource.getRepository(Organization);
         this.invitationRepository = AppDataSource.getRepository(Invitation);

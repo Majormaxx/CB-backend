@@ -66,4 +66,4 @@ package-lock.json
 .env
 dist
 mysql-data
-.trae/
+

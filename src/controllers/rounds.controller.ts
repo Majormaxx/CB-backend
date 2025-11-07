@@ -1,4 +1,5 @@
-import { injectable } from 'inversify';
+import { inject, injectable } from 'inversify';
+import { TYPES } from '../inversify.types.js';
 import { Response } from 'express';
 import { handleResponse } from '../models/response_models/request_handler.js';
 import { RoundService } from '../services/round.service.js';
@@ -11,8 +12,8 @@ import { AddTokenMintTxModel } from '../models/rounds/addTokenMintTx.model.js';
 export class RoundsController {
 
     constructor(
-        private roundService: RoundService,
-        private userService: UserService
+        @inject(TYPES.RoundService) private roundService: RoundService,
+        @inject(TYPES.UserService) private userService: UserService
     ) { }
 
 

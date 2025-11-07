@@ -130,7 +130,7 @@ export class SafeTransactionService {
 
             // Determine status based on transaction state
             let status: TransactionStatus['status'] = 'PENDING';
-            
+
             if (transaction.isExecuted) {
                 status = 'EXECUTED';
             } else if (transaction.confirmations && transaction.confirmations.length >= transaction.confirmationsRequired) {

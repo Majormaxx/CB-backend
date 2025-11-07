@@ -5,6 +5,7 @@ import { App } from './app.js';
 import { UserRouter } from './routers/user.router.js';
 import { OrgRouter } from './routers/org.router.js';
 import { RoundsRouter } from './routers/rounds.router.js';
+import { OrganizationConfigurationRouter } from './routers/organization-configuration.router.js';
 import { PayoutRouter } from './routers/payout.router.js';
 
 import { UserController } from './controllers/user.controller.js';
@@ -18,6 +19,8 @@ import { OrganizationService } from './services/organization.service.js';
 import { RoundService } from './services/round.service.js';
 import { PayoutService } from './services/payout.service.js';
 import { SafeTransactionService } from './services/safe/safe-transaction.service.js';
+import { EmailService } from './services/email.service.js';
+import { TeamPointsService } from './services/teamPoints.service.js';
 
 const container = new Container();
 
@@ -28,6 +31,7 @@ container.bind<App>(App).toSelf();
 container.bind<UserRouter>(UserRouter).toSelf();
 container.bind<OrgRouter>(OrgRouter).toSelf();
 container.bind<RoundsRouter>(RoundsRouter).toSelf();
+container.bind<OrganizationConfigurationRouter>(OrganizationConfigurationRouter).toSelf();
 container.bind<PayoutRouter>(PayoutRouter).toSelf();
 
 // Bind Controllers
@@ -38,11 +42,13 @@ container.bind<PayoutController>(PayoutController).toSelf();
 container.bind<OrganizationConfigurationController>(OrganizationConfigurationController).toSelf();
 
 // Bind Services
-container.bind<UserService>(UserService).toSelf();
+container.bind<UserService>(TYPES.UserService).to(UserService).inSingletonScope();
 container.bind<OrganizationService>(OrganizationService).toSelf();
-container.bind<RoundService>(RoundService).toSelf();
-container.bind<OrganizationConfigurationService>(OrganizationConfigurationService).toSelf();
+container.bind<RoundService>(TYPES.RoundService).to(RoundService).inSingletonScope();
+container.bind<OrganizationConfigurationService>(TYPES.OrganizationConfigurationService).to(OrganizationConfigurationService).inSingletonScope();
 container.bind<PayoutService>(TYPES.PayoutService).to(PayoutService).inSingletonScope();
 container.bind<SafeTransactionService>(TYPES.SafeTransactionService).to(SafeTransactionService).inSingletonScope();
+container.bind<EmailService>(TYPES.EmailService).to(EmailService).inSingletonScope();
+container.bind<TeamPointsService>(TYPES.TeamPointsService).to(TeamPointsService).inSingletonScope();
 
 export { container };

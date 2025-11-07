@@ -18,7 +18,7 @@ export class Invitation {
     @JoinColumn({ name: 'invited_by' })
     invitedBy!: User;
 
-    @CreateDateColumn({ type: 'timestamp' })
+    @CreateDateColumn({ type: 'datetime' })
     createdAt!: Date;
 
     @Column({ type: 'boolean', default: true })

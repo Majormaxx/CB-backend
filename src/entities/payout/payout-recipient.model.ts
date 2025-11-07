@@ -29,7 +29,7 @@ export class PayoutRecipient {
     @Column()
     walletAddressSnapshot!: string;
 
-    @Column({ type: 'enum', enum: TokenType })
+    @Column({ type: 'simple-enum', enum: TokenType })
     tokenType!: TokenType;
 
     @Column()
@@ -56,7 +56,7 @@ export class PayoutRecipient {
     @Column({ default: 1 })
     attempt!: number;
 
-    @Column({ type: 'enum', enum: PayoutRecipientStatus, default: PayoutRecipientStatus.PENDING })
+    @Column({ type: 'simple-enum', enum: PayoutRecipientStatus, default: PayoutRecipientStatus.PENDING })
     status!: PayoutRecipientStatus;
 
     @Column({ nullable: true })

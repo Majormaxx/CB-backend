@@ -1,8 +1,9 @@
 import { v4 as uuidv4 } from 'uuid';
 import jwt from 'jsonwebtoken';
 import dotenv from 'dotenv';
+import { inject, injectable } from 'inversify';
+import { TYPES } from '../inversify.types.js';
 import { CreateUserModel } from '../models/user/userRegistration.model.js';
-import { injectable } from 'inversify';
 import { CreatedResponseModel } from '../models/response_models/created_response_model.js';
 import { ResponseModel } from '../models/response_models/response_model.js';
 import { SiweMessage } from 'siwe';
@@ -28,7 +29,10 @@ export class UserService {
     private invitationRepository;
     private walletNonceRepository;
 
-    constructor(private emailService: EmailService, private teamPointsService: TeamPointsService) {
+    constructor(
+        @inject(TYPES.EmailService) private emailService: EmailService,
+        @inject(TYPES.TeamPointsService) private teamPointsService: TeamPointsService
+    ) {
         this.userRepository = AppDataSource.getRepository(User);
         this.invitationRepository = AppDataSource.getRepository(Invitation);
         this.walletNonceRepository = AppDataSource.getRepository(WalletNonce);

@@ -2,6 +2,7 @@ import { config as dotenv_config } from 'dotenv';
 import cron from 'node-cron';
 
 import { container } from './inversify.config.js';
+import { TYPES } from './inversify.types.js';
 import { RoundService } from './services/round.service.js';
 import { AppDataSource } from './data-source.js';
 
@@ -20,7 +21,7 @@ try {
         throw new Error('Start Round Generation schedule not defined.');
     }
 
-    const roundService = container.get(RoundService);
+    const roundService = container.get<RoundService>(TYPES.RoundService);
 
     cron.schedule(roundStartGenerationSchedule, async () => {
         try {

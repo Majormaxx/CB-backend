@@ -1,4 +1,5 @@
-import { injectable } from 'inversify';
+import { inject, injectable } from 'inversify';
+import { TYPES } from '../inversify.types.js';
 import { Request, Response } from 'express';
 import { UserService } from '../services/user.service.js';
 import { CreateUserModel, createUserScheme } from '../models/user/userRegistration.model.js';
@@ -9,7 +10,7 @@ import { uploadFileToS3 } from '../utils/fileUploader.js';
 @injectable()
 export class UserController {
 
-    constructor(private userService: UserService) { }
+    constructor(@inject(TYPES.UserService) private userService: UserService) { }
 
     /**
      * Request a nonce for wallet authentication

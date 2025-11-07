@@ -1,8 +1,9 @@
 import { injectable, inject } from 'inversify';
-import { getRepository, Repository } from 'typeorm';
+import { Repository } from 'typeorm';
 import { Organization, RecognitionTokenMode } from '../../entities/org/organization.model.js';
 import { validate } from 'class-validator';
 import { ethers } from 'ethers';
+import { AppDataSource } from '../../data-source.js';
 
 /**
  * Defines the structure for the Safe configuration data.
@@ -22,7 +23,7 @@ export class OrganizationConfigurationService {
     private orgRepository: Repository<Organization>;
 
     constructor() {
-        this.orgRepository = getRepository(Organization);
+        this.orgRepository = AppDataSource.getRepository(Organization);
     }
 
     /**
@@ -32,9 +33,29 @@ export class OrganizationConfigurationService {
     public getSupportedChains(): Array<{ chainId: number; name: string; rpcUrl: string }> {
         return [
             {
+                chainId: 1,
+                name: 'Ethereum Mainnet',
+                rpcUrl: process.env.ETHEREUM_RPC_URL || 'https://eth.llamarpc.com'
+            },
+            {
                 chainId: 42161,
                 name: 'Arbitrum One',
-                rpcUrl: 'https://arb1.arbitrum.io/rpc'
+                rpcUrl: process.env.ARBITRUM_RPC_URL || 'https://arb1.arbitrum.io/rpc'
+            },
+            {
+                chainId: 421614,
+                name: 'Arbitrum Sepolia',
+                rpcUrl: process.env.ARBITRUM_SEPOLIA_RPC_URL || 'https://sepolia-rollup.arbitrum.io/rpc'
+            },
+            {
+                chainId: 42220,
+                name: 'Celo Mainnet',
+                rpcUrl: process.env.CELO_RPC_URL || 'https://forno.celo.org'
+            },
+            {
+                chainId: 44787,
+                name: 'Celo Alfajores',
+                rpcUrl: process.env.CELO_ALFAJORES_RPC_URL || 'https://alfajores-forno.celo-testnet.org'
             }
         ];
     }
@@ -152,11 +173,12 @@ export class OrganizationConfigurationService {
                         const name = await tokenContract.name().catch(() => undefined);
                         const symbol = await tokenContract.symbol().catch(() => undefined);
 
-                        if (config.recognitionTokenDecimals !== undefined && decimals !== BigInt(config.recognitionTokenDecimals)) {
+                        if (config.recognitionTokenDecimals !== undefined
+                            && decimals !== BigInt(config.recognitionTokenDecimals)) {
                             errors.push(`Recognition token decimals mismatch: expected ${config.recognitionTokenDecimals}, got ${decimals}`);
                         }
 
-                        if (!tokenInfo) tokenInfo = { stablecoin: { decimals: config.stablecoinDecimals } };
+                        if (!tokenInfo) { tokenInfo = { stablecoin: { decimals: config.stablecoinDecimals } }; }
                         tokenInfo.recognition = {
                             name,
                             symbol,
@@ -247,13 +269,16 @@ export class OrganizationConfigurationService {
             throw new Error('Safe address is not a valid Gnosis Safe or has no owners');
         }
 
-        // Validate stablecoin by checking for `decimals` function
-        const stablecoinContract = new ethers.Contract(config.stablecoinAddress, ['function decimals() view returns (uint8)'], provider);
+        // Fetch stablecoin decimals from chain (do not trust input)
+        const stablecoinContract = new ethers.Contract(
+            config.stablecoinAddress,
+            ['function decimals() view returns (uint8)'],
+            provider
+        );
+        let stablecoinDecimalsOnChain: number;
         try {
             const decimals = await stablecoinContract.decimals();
-            if (decimals !== BigInt(config.stablecoinDecimals)) {
-                throw new Error('Mismatch in stablecoin decimals');
-            }
+            stablecoinDecimalsOnChain = Number(decimals);
         } catch (error) {
             throw new Error('Invalid stablecoin contract or unable to fetch decimals');
         }
@@ -272,11 +297,11 @@ export class OrganizationConfigurationService {
             ];
             const tokenContract = new ethers.Contract(config.recognitionTokenAddress, tokenAbi, provider);
 
+            // Fetch recognition token decimals from chain if provided (do not trust input)
+            let recognitionTokenDecimalsOnChain: number | undefined = undefined;
             try {
                 const decimals = await tokenContract.decimals();
-                if (config.recognitionTokenDecimals !== undefined && decimals !== BigInt(config.recognitionTokenDecimals)) {
-                    throw new Error('Mismatch in recognition token decimals');
-                }
+                recognitionTokenDecimalsOnChain = Number(decimals);
             } catch (error) {
                 throw new Error('Invalid recognition token contract or unable to fetch decimals');
             }
@@ -305,13 +330,25 @@ export class OrganizationConfigurationService {
             }
         }
 
-        // Update organization fields
+        // Update organization fields (persist fetched decimals)
         organization.safeAddress = config.safeAddress;
         organization.safeChainId = config.safeChainId;
         organization.stablecoinAddress = config.stablecoinAddress;
-        organization.stablecoinDecimals = config.stablecoinDecimals;
+        organization.stablecoinDecimals = stablecoinDecimalsOnChain;
         organization.recognitionTokenAddress = config.recognitionTokenAddress;
-        organization.recognitionTokenDecimals = config.recognitionTokenDecimals;
+        // If recognition token is configured, use fetched on-chain decimals; otherwise leave null
+        organization.recognitionTokenDecimals = typeof (organization.recognitionTokenAddress) === 'string'
+            ? (await (async () => {
+                try {
+                    const tokenAbi = ['function decimals() view returns (uint8)'];
+                    const tokenContract2 = new ethers.Contract(organization.recognitionTokenAddress!, tokenAbi, provider);
+                    const d = await tokenContract2.decimals();
+                    return Number(d);
+                } catch {
+                    return config.recognitionTokenDecimals ?? null as any;
+                }
+            })())
+            : null as any;
         organization.recognitionTokenMode = config.recognitionTokenMode;
 
         // Validate and save the updated entity
@@ -406,12 +443,18 @@ export class OrganizationConfigurationService {
      * @returns The RPC URL.
      */
     private getRpcUrl(chainId: number): string {
-        // This should be expanded with more networks or moved to a config file
-        switch (chainId) {
-            case 42161: // Arbitrum One
-                return 'https://arb1.arbitrum.io/rpc';
-            default:
-                throw new Error('Unsupported chain ID');
+        const rpcUrls: Record<number, string> = {
+            1: process.env.ETHEREUM_RPC_URL || 'https://eth.llamarpc.com',
+            11155111: process.env.ETHEREUM_SEPOLIA_RPC_URL || 'https://eth-sepolia.public.blastapi.io',
+            42161: process.env.ARBITRUM_RPC_URL || 'https://arb1.arbitrum.io/rpc',
+            421614: process.env.ARBITRUM_SEPOLIA_RPC_URL || 'https://sepolia-rollup.arbitrum.io/rpc',
+            42220: process.env.CELO_RPC_URL || 'https://forno.celo.org',
+            44787: process.env.CELO_ALFAJORES_RPC_URL || 'https://alfajores-forno.celo-testnet.org'
+        };
+        const url = rpcUrls[chainId];
+        if (!url) {
+            throw new Error('Unsupported chain ID');
         }
+        return url;
     }
 }

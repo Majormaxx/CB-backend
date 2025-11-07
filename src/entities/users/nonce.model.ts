@@ -11,7 +11,7 @@ export class WalletNonce {
     @Column({ type: 'varchar', length: 255 })
     nonce!: string;
 
-    @CreateDateColumn({ type: 'timestamp' })
+    @CreateDateColumn({ type: 'datetime' })
     createdAt!: Date;
 }
 

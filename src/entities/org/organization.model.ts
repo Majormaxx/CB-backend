@@ -10,7 +10,7 @@ import { User } from '../users/user.model.js';
 export enum RecognitionTokenMode {
     MINT = 'mint',
     TRANSFER = 'transfer',
-    NONE = 'none',
+    NONE = 'none'
 }
 
 @Entity('organizations')
@@ -36,13 +36,13 @@ export class Organization {
     @Column({ type: 'int', default: 0 })
     totalFunds!: number;
 
-    @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
+    @Column({ type: 'datetime', default: () => 'CURRENT_TIMESTAMP' })
     createdOn!: Date;
 
-    @Column('enum', { enum: CompensationPeriod, nullable: true })
+    @Column({ type: 'simple-enum', enum: CompensationPeriod, nullable: true })
     compensationPeriod!: CompensationPeriod | null;
 
-    @Column({ type: 'timestamp', nullable: true })
+    @Column({ type: 'datetime', nullable: true })
     compensationStartDay!: Date | null;
 
     @Column({ type: 'int', nullable: true })
@@ -103,6 +103,6 @@ export class Organization {
      * The mode for the recognition token, indicating if it's a custom token or none.
      * This is optional and defaults to NONE.
      */
-    @Column('enum', { enum: RecognitionTokenMode, nullable: true })
+    @Column({ type: 'simple-enum', enum: RecognitionTokenMode, nullable: true })
     recognitionTokenMode?: RecognitionTokenMode;
 }

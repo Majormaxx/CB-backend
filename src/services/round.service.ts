@@ -1,4 +1,5 @@
-import { injectable } from 'inversify';
+import { inject, injectable } from 'inversify';
+import { TYPES } from '../inversify.types.js';
 import { IsNull, LessThanOrEqual, MoreThanOrEqual, Not } from 'typeorm';
 import { EmailService } from './email.service.js';
 import { Assessment, ContributorRoundCompensation, Organization, Round, User } from '../entities/index.js';
@@ -23,7 +24,7 @@ export class RoundService {
     private roundsRepository;
     private assessmentRepository;
 
-    constructor(private emailService: EmailService) {
+    constructor(@inject(TYPES.EmailService) private emailService: EmailService) {
         this.userRepository = AppDataSource.getRepository(User);
         this.organizationRepository = AppDataSource.getRepository(Organization);
         this.roundsRepository = AppDataSource.getRepository(Round);

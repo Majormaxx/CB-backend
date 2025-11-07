@@ -13,19 +13,19 @@ export class Round {
     @Column({ type: 'boolean', default: false})
     isCompleted!: boolean;
 
-    @Column({ type: 'timestamp' })
+    @Column({ type: 'datetime' })
     startDate!: Date;
 
-    @Column({ type: 'timestamp' })
+    @Column({ type: 'datetime' })
     endDate!: Date;
 
     @Column({ type: 'varchar', nullable: true })
     txHash!: string | null;
 
-    @Column({ type: 'timestamp', nullable: false })
+    @Column({ type: 'datetime', nullable: false })
     compensationCycleStartDate!: Date;
 
-    @Column({ type: 'timestamp', nullable: false })
+    @Column({ type: 'datetime', nullable: false })
     compensationCycleEndDate!: Date;
 
     @OneToMany(() => Assessment, (assessment) => assessment.round, { cascade: true })
